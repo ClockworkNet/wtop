@@ -1,0 +1,19 @@
+wtop is like "top" for your webserver. How many searches or signups 
+are happening per second? What is the response time histogram for 
+your static files? wtop shows you at a glance.
+
+wtop also comes with:
+
+* logrep, a powerful command-line program for ad-hoc analysis and filtering 
+
+* logrep.py, a Python module you can use to write your own analysis programs
+
+
+CHANGELOG:
+
+version 0.5, 16 June 2008 carlos@bueno.org  
+Initial public release. Many thanks to my employer, Spock for releasing this
+project. 
+
+http://code.google.com/p/wtop/
+ 

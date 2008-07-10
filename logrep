@@ -1,0 +1,223 @@
+#!/usr/bin/python
+
+cmd_options = """
+A handy tool for sophisticated, ad-hoc analysis of webserver logs.
+
+Useage:
+logrep  [-m top | grep | tail] [-i URL_CLASSES | -e URL_CLASSES] 
+        [-g PATTERN] [-v PATTERN] [-o FIELDS] [-f FILTERS]
+        [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
+
+   -m MODE           There are three modes:
+                       - "grep" parses an entire log file (default).
+                       - "tail" tails and parses the current log.
+                       - "top" shows running performance statistics.
+                          Unless you are getting more than ~5 requests 
+                          per second, top mode is fairly useless.
+
+   -H, -R            Shorthand for a useful but incomplete filter of 
+                     robot user-agents. -H means humans only, -R means
+                     robots only. Equivalent to -f 'bot=0' or 'bot=1'.
+                     Also see the bot and botname fields below.
+
+
+   -i, -e CLASSES    filter by or exclude the given "classes". You can
+                     configure logrep to group requests by a set of 
+                     regular expressions. By default it groups them by
+                     root directory. -i and -e are mutually exclusive. 
+                     See the installation docs for how to configure your 
+                     own classes, and the -c option, below.
+
+                     Examples: 
+                       -i home,search,wiki
+                       -e img,xml,js
+
+
+   -g, -v PATTERN    filter by or exclude *whole log lines* that match
+                     the given regexps. You can have as many -g and -v 
+                     arguments as you like.
+
+                     Example: All lines matching "googlebot" or "msnbot" 
+                              AND not "paris-hilton"
+                       -g "Googlebot|msnbot" -v "Paris-Hilton"
+
+
+   -f FILTERS        -f filters act on fields instead of the whole line. 
+                     There is support for strings & numbers, greater 
+                     than (>), less than (<), equals (=), not-equals 
+                     (!=), and regular expression match (~ and !~).
+
+                     For example: Filter successful requests that were 
+                     over 10kB in size and do NOT have 'example.com' 
+                     in the Referer field: 
+
+                        -f "status=200,bytes>10000,ref!~example.com" 
+
+                     Available fields:
+                        msec       millisecond response time
+                        ip         The IP *or* hostname of the client
+                        ipcnt      # of hits from the same IP address
+                        url        The path of the request, eg '/home'
+                        ref        'Referer' header
+                        bytes      Bytes sent 
+                        ua         User-agent header
+                        uas        First 30 characters of ua
+                        ts         Unix timestamp of the request
+                        class      The URL 'class'
+                        status     HTTP status code, eg 200, 301, 404
+                        proto      Protocol version, eg 'HTTP/1.1'
+                        method     HTTP method, eg 'GET', 'POST'
+                        bot        Is a robot? 1 or 0. Only a guess.
+                        botname    eg 'Googlebot', 'Nutch', 'Slurp', etc
+                        cc         ISO-639 country code (see below)
+                        country    country name (see Geocoding, below)
+
+
+   -o FIELDS         output only the given fields. Example: 
+                    
+                       -o ts,bytes,msec,url
+
+
+   -l LAST_N         (grep mode only) Scan the last N log lines
+
+
+   -c CFG_FILE       Feed logrep a custom config file. By default it 
+                     will use /etc/wtop.cfg
+
+
+ Geocoding:
+    logrep will use the MaxMind GeoIP library if it is installed. This
+    will enable two extra fields for filtering and output: country 
+    (eg "United Kingdom"), and cc (country code, eg "UK"). These are a
+    *guess* at the country the HTTP client is from.
+
+ Examples:
+ 
+ "apachetop" for all human traffic:   
+     logrep -m top -f 'bot=0' access.log
+
+ status code & response times for all Googlebot homepage hits:
+     logrep -m grep -f 'botname=Googlebot' -i home -o status,msec
+
+ tail for pages about Angelina Jolie or Brad Pitt sent from example.com
+     logrep -m tail -f 'url~jolie|pitt,ref~example.com' access.log
+
+11 July 2008        carlos@bueno.org       http://code.google.com/p/wtop
+"""
+
+import logrep
+
+
+
+def runit():
+    from sets import Set
+    import getopt, sys, os.path
+    opts, args = getopt.getopt(sys.argv[1:], "?hHRdm:i:e:o:g:v:l:f:c:")
+    grep_excludes = []
+    grep_filters = []
+    last_n = None
+    filter_classes = []
+    exclude_classes = []
+    cond_filter = None
+    cond_filter_fields = []
+    filter_string = []
+    output_fields = None
+    MODE = 'grep' # tail, top, grep, top-json
+    DEBUG = False
+    cfg = '/etc/wtop.cfg'
+
+    for o,v in opts:
+        if o == '-h' or o == '-?': print cmd_options; sys.exit(0)
+        if o == '-m': MODE = v
+        if o == '-i': filter_classes = Set(v.split(','))
+        if o == '-e': exclude_classes = Set(v.split(','))
+        if o == '-o': output_fields = tuple(v.split(','))
+        if o == '-H': filter_string.append('bot=0')
+        if o == '-R': filter_string.append('bot=1')
+        if o == '-g': grep_filters.append(v)
+        if o == '-v': grep_excludes.append(v)
+        if o == '-l': last_n = int(v)
+        if o == '-f': filter_string.append(v)
+        if o == '-d': DEBUG = True
+        if o == '-c': 
+            if v:
+                if not os.path.exists(v):
+                    raise Exception("bad config file: '%s'" % v)
+                cfg = v
+                
+
+    logrep.configure(cfg)
+    if not output_fields:
+        output_fields = logrep.DEFAULT_OUTPUT_FIELDS
+
+    if filter_string:
+        cond_filter, cond_filter_fields = logrep.compile_filter(','.join(filter_string))
+
+    if DEBUG:
+        print logrep.LOG_PATTERN, MODE, filter_classes, exclude_classes, output_fields, grep_filters, grep_excludes, args
+
+    if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
+        raise Exception("can't load geoip library and you asked for cc or country fields.")
+
+
+    # open the log(s) as a generator that yields raw lines
+    log = None
+    if MODE in ('top', 'tail', 'rrd'):
+        if not args:
+            log = logrep.follow(open(logrep.latest_log()[0]))
+        else:
+            log = logrep.follow(open(args[0]))
+
+    else: # grep mode
+        logfiles = None
+        if not args or args[0] == 'today' or args[0] == 't':
+            logfiles = logrep.todays_logs()
+
+        elif args[0] == 'yesterday' or args[0] == 'y':
+            logfiles = logrep.yesterdays_logs()
+
+        else: # explicit file
+            logfiles = [args[0]] #logfiles = logs_for_date(args[0])
+
+        if last_n:
+            log = logrep.tail_n(logfiles[-1], last_n)
+        else:       
+            log = logrep.gen_cat(logrep.gen_open(logfiles))
+
+
+    # various line filters, processors, etc.
+    for e in grep_excludes: log = logrep.line_exclude(log, e)
+    for f in grep_filters:  log = logrep.line_filter(log, f)
+
+    # only process relevant fields
+    relevant_fields = Set(
+        tuple(output_fields) + 
+        tuple(cond_filter_fields) + 
+        ('status', 'ip', 'proto', 'url', 'method', 'msec', 'ua'))
+
+
+    LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
+    reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
+
+    reqs = logrep.classify_req(reqs, filter_classes, exclude_classes)
+    if cond_filter: 
+        reqs = cond_filter(reqs)
+        
+    try:
+        if MODE=='top':
+            logrep.apache_top_mode(reqs)
+
+        elif MODE == 'rrd':
+            logrep.rrd_mode(reqs)
+
+        else:
+            logrep.tail_mode(reqs, output_fields)
+
+    except KeyboardInterrupt:
+        sys.stderr.write("Interrupted! Mein leiben!\n")
+        
+
+if __name__ == '__main__':
+#    import cProfile
+#    cProfile.run('runit()')
+    runit()

@@ -1,0 +1,2 @@
+#!/bin/sh
+logrep -m top -f 'bot=0' -c "$2"
