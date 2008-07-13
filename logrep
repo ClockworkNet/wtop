@@ -4,16 +4,15 @@ cmd_options = """
 A handy tool for sophisticated, ad-hoc analysis of webserver logs.
 
 Useage:
-logrep  [-m top | grep | tail] [-i URL_CLASSES | -e URL_CLASSES] 
+logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES] 
         [-g PATTERN] [-v PATTERN] [-o FIELDS] [-f FILTERS]
-        [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
+        [-b GROUP_BY] [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
 
-   -m MODE           There are three modes:
+   -m MODE           There are four modes:
                        - "grep" parses an entire log file (default).
                        - "tail" tails and parses the current log.
+                       - "agg" calculates min(), avg(), count(*), etc
                        - "top" shows running performance statistics.
-                          Unless you are getting more than ~5 requests 
-                          per second, top mode is fairly useless.
 
    -H, -R            Shorthand for a useful but incomplete filter of 
                      robot user-agents. -H means humans only, -R means
@@ -73,12 +72,31 @@ logrep  [-m top | grep | tail] [-i URL_CLASSES | -e URL_CLASSES]
                         country    country name (see Geocoding, below)
 
 
-   -o FIELDS         output only the given fields. Example: 
-                    
-                       -o ts,bytes,msec,url
+   -o FIELDS         Output only the given fields. 
+                      
+                     Example:
+                       -o 'ts,bytes,msec,url'
+
+                     In -m agg mode you can use aggregate functions
+                     very similar to SQL:
+
+                        avg(FIELD)
+                        min(FIELD)
+                        max(FIELD)
+                        count(*)
+                        sum(FIELD)
+
+                     Example:
+                        -o 'class,count(*),avg(msec)'
+
+                     At the moment you cannot use aggregate functions
+                     in the -f FILTER. This will be in a future release.
 
 
-   -l LAST_N         (grep mode only) Scan the last N log lines
+   -b GROUP_BY       (agg mode only) fields by which to group lines.
+
+
+   -l LAST_N         (grep and agg modes only) Scan the last N log lines
 
 
    -c CFG_FILE       Feed logrep a custom config file. By default it 
@@ -93,16 +111,28 @@ logrep  [-m top | grep | tail] [-i URL_CLASSES | -e URL_CLASSES]
 
  Examples:
  
- "apachetop" for all human traffic:   
+ "wtop" for all human traffic:   
+
      logrep -m top -f 'bot=0' access.log
 
- status code & response times for all Googlebot homepage hits:
+
+ Status code & response times for all Googlebot homepage hits:
+
      logrep -m grep -f 'botname=Googlebot' -i home -o status,msec
 
- tail for pages about Angelina Jolie or Brad Pitt sent from example.com
+
+ Tail for pages about Angelina Jolie or Brad Pitt sent from example.com
+
      logrep -m tail -f 'url~jolie|pitt,ref~example.com' access.log
 
-11 July 2008        carlos@bueno.org       http://code.google.com/p/wtop
+
+ Get maximum response size and average response time for requests 
+ grouped by URL class:
+
+     logrep -m agg -o 'class,max(bytes),avg(msec)' -b 'class'
+
+
+14 July 2008        carlos@bueno.org       http://code.google.com/p/wtop
 """
 
 import logrep
@@ -112,7 +142,7 @@ import logrep
 def runit():
     from sets import Set
     import getopt, sys, os.path
-    opts, args = getopt.getopt(sys.argv[1:], "?hHRdm:i:e:o:g:v:l:f:c:")
+    opts, args = getopt.getopt(sys.argv[1:], "?hHRdm:i:e:o:g:v:l:f:c:b:")
     grep_excludes = []
     grep_filters = []
     last_n = None
@@ -125,13 +155,17 @@ def runit():
     MODE = 'grep' # tail, top, grep, top-json
     DEBUG = False
     cfg = '/etc/wtop.cfg'
-
+    agg_fields = []
+    has_agg = False
+    group_by = []
+        
     for o,v in opts:
         if o == '-h' or o == '-?': print cmd_options; sys.exit(0)
         if o == '-m': MODE = v
         if o == '-i': filter_classes = Set(v.split(','))
         if o == '-e': exclude_classes = Set(v.split(','))
-        if o == '-o': output_fields = tuple(v.split(','))
+        if o == '-b': group_by = Set(v.split(','))
+        if o == '-o': output_fields, agg_fields, has_agg = logrep.compile_aggregates(v)
         if o == '-H': filter_string.append('bot=0')
         if o == '-R': filter_string.append('bot=1')
         if o == '-g': grep_filters.append(v)
@@ -168,7 +202,7 @@ def runit():
         else:
             log = logrep.follow(open(args[0]))
 
-    else: # grep mode
+    else: # grep/agg mode
         logfiles = None
         if not args or args[0] == 'today' or args[0] == 't':
             logfiles = logrep.todays_logs()
@@ -189,11 +223,13 @@ def runit():
     for e in grep_excludes: log = logrep.line_exclude(log, e)
     for f in grep_filters:  log = logrep.line_filter(log, f)
 
+
+
     # only process relevant fields
     relevant_fields = Set(
         tuple(output_fields) + 
         tuple(cond_filter_fields) + 
-        ('status', 'ip', 'proto', 'url', 'method', 'msec', 'ua'))
+        ('ts', 'status', 'ip', 'proto', 'url', 'method', 'msec', 'ua'))
 
 
     LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
@@ -210,6 +246,12 @@ def runit():
         elif MODE == 'rrd':
             logrep.rrd_mode(reqs)
 
+
+        elif MODE == 'agg':
+            logrep.agg_mode(reqs, agg_fields, group_by)
+
+
+        # actually tail and grep mode
         else:
             logrep.tail_mode(reqs, output_fields)
 

@@ -166,7 +166,7 @@ def apache2unixtime(t):
         ofs = 0
         if len(parts) == 7:
             ofs = (int(parts[6]) * 3600)
-        return (((((date_ordinal(int(parts[2]), months[parts[1]]) - 1 + int(parts[0]))*24) + int(parts[3]))*60 + int(parts[4]))*60 + int(parts[5])) + ofs
+        return (((((date_ordinal(int(parts[2]), months[parts[1]]) - 1 + int(parts[0]))*24) + int(parts[3]))*60 + int(parts[4]))*60 + int(parts[5])) + ofs, (int(parts[2]), months[parts[1]], int(parts[0]), int(parts[3]), int(parts[4]), int(parts[5]))
     except:
         warn("apache2unix failed on '%s'"%t)
 
@@ -176,6 +176,17 @@ def apache2unixtime(t):
 month_len = (0,31,59,90,120,151,181,212,243,273,304,334)
 def date_ordinal(y, m):
     return ((y - 1970) * 365) + (y / 4) - 492 + month_len[m-1]
+
+
+reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+ipcnts = {}  # todo: possible memory problem on long runs
+def count_ips(ip):
+    # compact the ip to 4 bytes for the ipcnts table
+    ipkey = ip
+    if reip.match(ip): # hack: some people still have HostnameLookups on
+        ipkey = socket.inet_aton(ip)
+    ipcnts[ipkey] = ipcnts.get(ipkey, 0) + 1
+    return ipcnts[ipkey]
 
 
 
@@ -189,11 +200,11 @@ def fix_usec(s):
 
 # special field massage & mapping
 col_fns = [
-    ('ts',      'ts',      apache2unixtime),
     ('msec',    'msec',    fix_usec),
     ('status',  'status',  int),
     ('bytes',   'bytes',   safeint),
     ('ua',      'uas',     (lambda s: s[:30])),
+    ('ip',      'ipcnt',   count_ips),
 ]
 if geocoder:
     col_fns.append(('ip', 'country', geocoder.country_name_by_addr))
@@ -206,6 +217,11 @@ def field_map(lines, relevant_fields):
             line[newcol] = fn(line[col])
         yield line
 
+def parse_dates(reqs):
+    for r in reqs:
+        r['ts'], date_parts = apache2unixtime(r['ts'])
+        r['year'], r['month'], r['day'], r['hour'], r['minute'] = date_parts[0:5]
+        yield r
 
 def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):    
     logpat     = re.compile(LOG_PATTERN) 
@@ -213,14 +229,13 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     tuples     = (g.groups() for g in groups if g) 
     log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
     log        = field_map(log, relevant_fields)
+    log        = parse_dates(log)
     return log
 
 
 # takes in a sequence of dicts returned by apache_log and applies
-# the classification regexps and incidentally the ipcnt table.
-reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
+# the classification regexps
 def classify_req(reqs, filter_classes=False, exclude_classes=False):
-    ipcnts = {}  # todo: possible memory problem on long runs
 
     for r in reqs:
         r['bot'] = 0
@@ -246,12 +261,6 @@ def classify_req(reqs, filter_classes=False, exclude_classes=False):
 
         if exclude_classes and r['class'] in exclude_classes: 
             continue 
-
-        # compact the ip to 4 bytes for the ipcnts table
-        ipint = r['ip']
-        if reip.match(r['ip']): # hack: some people still have HostnameLookups on
-            ipint = socket.inet_aton(r['ip'])
-        r['ipcnt'] = ipcnts[ipint] = ipcnts.get(ipint, 0) + 1
 
         yield r
 
@@ -444,7 +453,59 @@ def line_exclude(lines, pat):
         if not r.search(ln):
             yield ln
 
+# "sum(foo),bar,max(baz)
+re_agg = re.compile(r'(?:(sum|count|avg|min|max)\(([a-z\*1]+|)\)|([a-z]+))')
+def compile_aggregates(commands):
+    fields = re_agg.findall(commands)
+    output_fields = []
+    agg_fields = []
+    has_agg = False
+    for f in fields:
+        if f[1] != '':
+            output_fields.append(f[1])
+            agg_fields.append((f[0:2]))
+            has_agg = True
+        else:
+            output_fields.append(f[2])
+            agg_fields.append(f[2])
 
+    return output_fields, agg_fields, has_agg
+
+
+MAXINT = 1<<32
+def agg_mode(reqs, agg_fields, group_by):
+    table = {}
+    for r in reqs:
+        key = ','.join([r[k] for k in group_by])
+        if not table.has_key(key):
+            table[key] = {}
+        table[key]['count'] = table[key].get('count', 0) + 1
+        
+        for f in agg_fields:    
+            if type(f) == str:
+                table[key][f] = r[f]
+            else:
+                op, field = f
+
+                if op == 'count':
+                    table[key][f] = table[key]['count']
+
+                if op == 'sum':
+                    table[key][f] = table[key].get(f, 0) + r[field]
+
+                elif op == 'avg':
+                    table[key][f] = table[key].get(f,0) + (r[field] / float(table[key]['count']))
+
+                elif op == 'min':
+                    table[key][f] = min(r[field], table[key].get(f, MAXINT))
+
+                elif op == 'max':
+                    table[key][f] = max(r[field], table[key].get(f, 0))
+                
+                    
+
+    for row in table.values():
+        print '\t'.join([str(row[k]) for k in agg_fields])
 
 
 # This is a compiler for teeny tiny pattern match language.
@@ -558,7 +619,6 @@ def tail_mode(reqs, fields):
     for r in reqs:
 #        print r
         print '\t'.join([str(r[k]) for k in fields])
-
 
 
 ## experimental RRDtool mode for generating timeseries graphs

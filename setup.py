@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='wtop',
-    version='0.5.9',
+    version='0.6.0',
 
     data_files=[('/etc', ['wtop.cfg'])],
     scripts=['wtop', 'logrep'],
