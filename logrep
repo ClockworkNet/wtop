@@ -254,7 +254,7 @@ def runit():
 
     # check to see if any derived timestamp fields like year or month are 
     # being asked for
-    if filter((lambda f: f in logrep.TS_FIELDS), relevant_fields):
+    if relevant_fields.intersection(('ts', 'year', 'month', 'day', 'hour', 'minute')):
         relevant_fields.add('ts')
 
     # recompile the log format regexp given the relevant fields

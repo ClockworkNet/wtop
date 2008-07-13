@@ -174,7 +174,7 @@ def apache2unixtime(t):
         if len(parts) == 7:
             ofs = (int(parts[6]) * 3600)
         year, month, day, hour, minute = (int(parts[2]), months[parts[1]], int(parts[0]), int(parts[3]), int(parts[4]))
-        return (((((date_ordinal(year, month) - 1 + day)*24) + hour)*60 + minute)*60 + int(parts[5])) + ofs, (year, month, day, hour, minute)
+        return ((((((date_ordinal(year, month) - 1 + day)*24) + hour)*60 + minute)*60 + int(parts[5])) + ofs, year, month, day, hour, minute)
     except:
         warn("apache2unix failed on '%s'"%t)
 
@@ -206,57 +206,53 @@ def fix_usec(s):
     else:
         return int(s)/1000
 
+
+def parse_bots(ua):
+    m = re_robots.search(ua, re.I)
+    if m:
+        return (1, ua[m.start():m.end()])
+    return (0, '')
+
+
 # special field massage & mapping to derived fields
 col_fns = [
-    ('msec',    'msec',    fix_usec),
-    ('status',  'status',  int),
-    ('bytes',   'bytes',   safeint),
-    ('ua',      'uas',     (lambda s: s[:30])),
-    ('ip',      'ipcnt',   count_ips),
+    ('msec',    ('msec',),    fix_usec),
+    ('status',  ('status',),  int),
+    ('bytes',   ('bytes',),   safeint),
+    ('ua',      ('uas',),     (lambda s: s[:30])),
+    ('ip',      ('ipcnt',),   count_ips),
+    ('ua',      ('bot', 'botname'), parse_bots),
+    ('ts',      ('ts', 'year', 'month', 'day', 'hour', 'minute'), apache2unixtime),
 ]
-if geocoder:
-    col_fns.append(('ip', 'country', geocoder.country_name_by_addr))
-    col_fns.append(('ip', 'cc',      geocoder.country_code_by_addr))
+
+# only possible if the geocoding lib is loaded.
+if geocoder: 
+    col_fns.append(('ip', ('country',), geocoder.country_name_by_addr))
+    col_fns.append(('ip', ('cc',),      geocoder.country_code_by_addr))
+
 
 def field_map(lines, relevant_fields):
-    relevant_col_fns = filter((lambda f: f[1] in relevant_fields), col_fns)
+    # get only the column functions that are necessary
+    relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
+
     for line in lines:
-        for col, newcol, fn in relevant_col_fns:
-            line[newcol] = fn(line[col])
+        for source_col, new_cols, fn in relevant_col_fns:
+            vals = fn(line[source_col])
+            if len(new_cols) == 1:    # todo: ugly & slow
+                line[new_cols[0]] = vals
+            else:
+                for i, col in enumerate(new_cols):
+                    line[col] = vals[i]
+
         yield line
 
-# todo: we need a better way to define derived fields and their requisites
-def parse_dates(reqs):
-    for r in reqs:
-        r['ts'], date_parts = apache2unixtime(r['ts'])
-        r['year'], r['month'], r['day'], r['hour'], r['minute'] = date_parts[0:5]
-        yield r
 
-def parse_bots(reqs):
-    for r in reqs:
-        r['bot'] = 0
-        r['botname'] = ''
-        m = re_robots.search(r['ua'], re.I)
-        if m:
-            r['bot'] = 1
-            r['botname'] = r['ua'][m.start():m.end()]
-        yield r
-
-BOT_FIELDS = Set(('bot', 'botname'))
-TS_FIELDS = Set(('ts', 'year', 'month', 'day', 'hour', 'minute'))
 def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):    
     logpat     = re.compile(LOG_PATTERN) 
     groups     = (logpat.search(line) for line in loglines) 
     tuples     = (g.groups() for g in groups if g) 
     log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
     log        = field_map(log, relevant_fields)
-
-    if relevant_fields.intersection(TS_FIELDS):
-        log    = parse_dates(log)
-
-    if relevant_fields.intersection(BOT_FIELDS):
-        log    = parse_bots(log)
-        
     return log
 
 
