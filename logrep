@@ -5,7 +5,7 @@ A handy tool for sophisticated, ad-hoc analysis of webserver logs.
 
 Useage:
 logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES] 
-        [-g PATTERN] [-v PATTERN] [-o FIELDS] [-f FILTERS]
+        [-g PATTERN] [-v PATTERN] [-o FIELDS] [-f FILTERS] [-q]
         [-b GROUP_BY] [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
 
    -m MODE           There are four modes:
@@ -103,6 +103,9 @@ logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES]
                      will use /etc/wtop.cfg
 
 
+   -q                Quiet mode. Does not print messages to stderr.
+
+
  Geocoding:
     logrep will use the MaxMind GeoIP library if it is installed. This
     will enable two extra fields for filtering and output: country 
@@ -142,7 +145,7 @@ import logrep
 def runit():
     from sets import Set
     import getopt, sys, os.path
-    opts, args = getopt.getopt(sys.argv[1:], "?hHRdm:i:e:o:g:v:l:f:c:b:")
+    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:b:")
     grep_excludes = []
     grep_filters = []
     last_n = None
@@ -153,7 +156,6 @@ def runit():
     filter_string = []
     output_fields = None
     MODE = 'grep' # tail, top, grep, top-json
-    DEBUG = False
     cfg = '/etc/wtop.cfg'
     agg_fields = []
     has_agg = False
@@ -172,26 +174,43 @@ def runit():
         if o == '-v': grep_excludes.append(v)
         if o == '-l': last_n = int(v)
         if o == '-f': filter_string.append(v)
-        if o == '-d': DEBUG = True
+        if o == '-d': logrep.LOG_LEVEL = 2
+        if o == '-q': logrep.LOG_LEVEL = 0
         if o == '-c': 
             if v:
                 if not os.path.exists(v):
                     raise Exception("bad config file: '%s'" % v)
                 cfg = v
                 
-
+    ## check all the config options are sane, etc.
     logrep.configure(cfg)
+
     if not output_fields:
         output_fields = logrep.DEFAULT_OUTPUT_FIELDS
 
     if filter_string:
         cond_filter, cond_filter_fields = logrep.compile_filter(','.join(filter_string))
 
-    if DEBUG:
+    if logrep.LOG_LEVEL == 2:
         print logrep.LOG_PATTERN, MODE, filter_classes, exclude_classes, output_fields, grep_filters, grep_excludes, args
 
     if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
-        raise Exception("can't load geoip library and you asked for cc or country fields.")
+        raise Exception("error: can't load geoip library and you asked for cc or country fields.")
+
+    if has_agg and MODE != 'agg':
+        raise Exception("error: aggregate functions are only allowed in -m agg mode")
+
+    if not has_agg and MODE == 'agg':
+        raise Exception("error: you are in -m agg mode but no aggregate functions in (%s)" % ','.join(output_fields))
+
+    if group_by and MODE != 'agg':
+        logrep.warn("warn: -b GROUP_BY is only relevant in -m agg mode")
+
+    if not group_by and MODE == 'agg':
+        logrep.warn("warn: you are in -m agg mode without -b GROUP_BY. Only one line will be printed.")
+
+    if last_n and MODE not in ('agg', 'grep'):
+        logrep.warn("warn: -l LAST_N is only relevant in -m agg or -m grep modes")
 
 
     # open the log(s) as a generator that yields raw lines
@@ -219,26 +238,38 @@ def runit():
             log = logrep.gen_cat(logrep.gen_open(logfiles))
 
 
-    # various line filters, processors, etc.
+    # various raw log line filters
     for e in grep_excludes: log = logrep.line_exclude(log, e)
     for f in grep_filters:  log = logrep.line_filter(log, f)
 
+    # determine which fields are really necessary
+    absolutely_necessary = ('ua', 'proto', 'url', 'method')
+    if MODE == 'top':
+        absolutely_necessary = ('status', 'ip', 'proto', 'url', 'method', 'msec', 'ua', 'ts')
 
-
-    # only process relevant fields
     relevant_fields = Set(
         tuple(output_fields) + 
         tuple(cond_filter_fields) + 
-        ('ts', 'status', 'ip', 'proto', 'url', 'method', 'msec', 'ua'))
+        absolutely_necessary)
 
+    # check to see if any derived timestamp fields like year or month are 
+    # being asked for
+    if filter((lambda f: f in logrep.TS_FIELDS), relevant_fields):
+        relevant_fields.add('ts')
 
+    # recompile the log format regexp given the relevant fields
     LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
+
+    # parse the raw log lines into records & do any needed massage and derivation
     reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
 
+    # determine the URL class and do any class filtering necessary
     reqs = logrep.classify_req(reqs, filter_classes, exclude_classes)
-    if cond_filter: 
-        reqs = cond_filter(reqs)
-        
+
+    # apply the -f filter function, if it exists
+    if cond_filter: reqs = cond_filter(reqs)
+    
+    # feed the surviving records into the proper mode function
     try:
         if MODE=='top':
             logrep.apache_top_mode(reqs)
@@ -246,12 +277,10 @@ def runit():
         elif MODE == 'rrd':
             logrep.rrd_mode(reqs)
 
-
         elif MODE == 'agg':
             logrep.agg_mode(reqs, agg_fields, group_by)
 
-
-        # actually tail and grep mode
+        # tail OR grep mode
         else:
             logrep.tail_mode(reqs, output_fields)
 
@@ -260,6 +289,5 @@ def runit():
         
 
 if __name__ == '__main__':
-#    import cProfile
-#    cProfile.run('runit()')
+#    import cProfile; cProfile.run('runit()')
     runit()

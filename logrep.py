@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import os, math, fnmatch, re, time, calendar, string, socket, sys
+from copy import copy
+from sets import Set
 geocoder = None
 try:
     import GeoIP
@@ -9,7 +11,12 @@ try:
 except:
     pass
 
+
+LOG_LEVEL = 1  # 0 == quiet, 1 == normal, 2 == debug
+
+
 def warn(s):
+    if LOG_LEVEL < 1: return
     sys.stderr.write(s+'\n')
 
 
@@ -166,7 +173,8 @@ def apache2unixtime(t):
         ofs = 0
         if len(parts) == 7:
             ofs = (int(parts[6]) * 3600)
-        return (((((date_ordinal(int(parts[2]), months[parts[1]]) - 1 + int(parts[0]))*24) + int(parts[3]))*60 + int(parts[4]))*60 + int(parts[5])) + ofs, (int(parts[2]), months[parts[1]], int(parts[0]), int(parts[3]), int(parts[4]), int(parts[5]))
+        year, month, day, hour, minute = (int(parts[2]), months[parts[1]], int(parts[0]), int(parts[3]), int(parts[4]))
+        return (((((date_ordinal(year, month) - 1 + day)*24) + hour)*60 + minute)*60 + int(parts[5])) + ofs, (year, month, day, hour, minute)
     except:
         warn("apache2unix failed on '%s'"%t)
 
@@ -198,7 +206,7 @@ def fix_usec(s):
     else:
         return int(s)/1000
 
-# special field massage & mapping
+# special field massage & mapping to derived fields
 col_fns = [
     ('msec',    'msec',    fix_usec),
     ('status',  'status',  int),
@@ -217,26 +225,14 @@ def field_map(lines, relevant_fields):
             line[newcol] = fn(line[col])
         yield line
 
+# todo: we need a better way to define derived fields and their requisites
 def parse_dates(reqs):
     for r in reqs:
         r['ts'], date_parts = apache2unixtime(r['ts'])
         r['year'], r['month'], r['day'], r['hour'], r['minute'] = date_parts[0:5]
         yield r
 
-def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):    
-    logpat     = re.compile(LOG_PATTERN) 
-    groups     = (logpat.search(line) for line in loglines) 
-    tuples     = (g.groups() for g in groups if g) 
-    log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
-    log        = field_map(log, relevant_fields)
-    log        = parse_dates(log)
-    return log
-
-
-# takes in a sequence of dicts returned by apache_log and applies
-# the classification regexps
-def classify_req(reqs, filter_classes=False, exclude_classes=False):
-
+def parse_bots(reqs):
     for r in reqs:
         r['bot'] = 0
         r['botname'] = ''
@@ -244,7 +240,30 @@ def classify_req(reqs, filter_classes=False, exclude_classes=False):
         if m:
             r['bot'] = 1
             r['botname'] = r['ua'][m.start():m.end()]
+        yield r
 
+BOT_FIELDS = Set(('bot', 'botname'))
+TS_FIELDS = Set(('ts', 'year', 'month', 'day', 'hour', 'minute'))
+def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):    
+    logpat     = re.compile(LOG_PATTERN) 
+    groups     = (logpat.search(line) for line in loglines) 
+    tuples     = (g.groups() for g in groups if g) 
+    log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
+    log        = field_map(log, relevant_fields)
+
+    if relevant_fields.intersection(TS_FIELDS):
+        log    = parse_dates(log)
+
+    if relevant_fields.intersection(BOT_FIELDS):
+        log    = parse_bots(log)
+        
+    return log
+
+
+# takes in a sequence of dicts returned by apache_log and applies
+# the classification regexps
+def classify_req(reqs, filter_classes=False, exclude_classes=False):
+    for r in reqs:
         r['class'] = ''
         for c in re_classes:
             if c[1].search(r['url']):
@@ -453,7 +472,7 @@ def line_exclude(lines, pat):
         if not r.search(ln):
             yield ln
 
-# "sum(foo),bar,max(baz)
+# "sum(foo),bar,max(baz)  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
 re_agg = re.compile(r'(?:(sum|count|avg|min|max)\(([a-z\*1]+|)\)|([a-z]+))')
 def compile_aggregates(commands):
     fields = re_agg.findall(commands)
@@ -467,45 +486,10 @@ def compile_aggregates(commands):
             has_agg = True
         else:
             output_fields.append(f[2])
-            agg_fields.append(f[2])
+            agg_fields.append((None, f[2]))
 
     return output_fields, agg_fields, has_agg
 
-
-MAXINT = 1<<32
-def agg_mode(reqs, agg_fields, group_by):
-    table = {}
-    for r in reqs:
-        key = ','.join([r[k] for k in group_by])
-        if not table.has_key(key):
-            table[key] = {}
-        table[key]['count'] = table[key].get('count', 0) + 1
-        
-        for f in agg_fields:    
-            if type(f) == str:
-                table[key][f] = r[f]
-            else:
-                op, field = f
-
-                if op == 'count':
-                    table[key][f] = table[key]['count']
-
-                if op == 'sum':
-                    table[key][f] = table[key].get(f, 0) + r[field]
-
-                elif op == 'avg':
-                    table[key][f] = table[key].get(f,0) + (r[field] / float(table[key]['count']))
-
-                elif op == 'min':
-                    table[key][f] = min(r[field], table[key].get(f, MAXINT))
-
-                elif op == 'max':
-                    table[key][f] = max(r[field], table[key].get(f, 0))
-                
-                    
-
-    for row in table.values():
-        print '\t'.join([str(row[k]) for k in agg_fields])
 
 
 # This is a compiler for teeny tiny pattern match language.
@@ -614,11 +598,60 @@ def apache_top_mode(reqs):
         print "\n".join(buf) + "\n\n\n"
 
 
-
+# actually it's both tail and grep mode
 def tail_mode(reqs, fields):
     for r in reqs:
-#        print r
         print '\t'.join([str(r[k]) for k in fields])
+
+
+## aggregates mode. 
+# Eventually top mode may become a special case of agg mode.
+MAXINT = 1<<32
+def agg_mode(reqs, agg_fields, group_by):
+    table = {}
+    cnt = 0
+
+    # each aggregate record will start as a list of values whose
+    # default depends on the agg function. Also take the opportunity
+    # here to build a formatting string for printing the final results.
+    fmt        = ['%s'] * len(agg_fields)
+    blank      = [0]    * (len(agg_fields)+1)
+    for i,f in enumerate(agg_fields):
+        op, field = f
+        if op == 'min':
+            blank[i+1] = MAXINT
+        elif op == 'avg':
+            fmt[i] = '%.2f'
+    fmt = '\t'.join(fmt)
+
+    # the None function is for pass-through fields eg 'class' in 'class,max(msec)'
+    agg_fns = {
+        None:    (lambda i, r, field, table, key: r[field]),
+        'count': (lambda i, r, field, table, key: table[key][0]),
+        'avg':   (lambda i, r, field, table, key: table[key][i+1] + (r[field] / float(table[key][0]))),
+        'sum':   (lambda i, r, field, table, key: table[key][i+1] + r[field]), 
+        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i+1])), 
+        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
+        }
+
+    for r in reqs:
+        cnt += 1
+        if cnt % 5000 == 0: warn ('processed %d lines...' % cnt)
+
+        key = ','.join([str(r[k]) for k in group_by])
+        if not table.has_key(key):
+            table[key] = copy(blank)
+
+        table[key][0] += 1 # line count is always col 0, even if not asked for
+        
+        for i,f in enumerate(agg_fields):
+            op, field = f
+            table[key][i+1] = agg_fns[op](i, r, field, table, key)
+               
+    for row in table.values():
+        print fmt % tuple(row[1:])
+
+
 
 
 ## experimental RRDtool mode for generating timeseries graphs
