@@ -76,7 +76,6 @@ def configure(cfg='/etc/wtop.cfg'):
     LOG_PATTERN,LOG_COLUMNS = format2regexp(config.get('main', 'log_format'))
 
 
-# translate log format string into a column list and regexp
 def flatten(x):
     result = []
     for el in x:
@@ -86,6 +85,8 @@ def flatten(x):
             result.append(el)
     return result
 
+
+# translate log format string into a column list and regexp
 restr = r'(\S+)'
 restr_skipped = r'\S+'
 requoted = r'([^"]*)'
@@ -186,6 +187,8 @@ def date_ordinal(y, m):
     return ((y - 1970) * 365) + (y / 4) - 492 + month_len[m-1]
 
 
+# keeps a count of seen remote IP addresses. returns
+# a value for the ipcnt field
 reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 ipcnts = {}  # todo: possible memory problem on long runs
 def count_ips(ip):
@@ -206,7 +209,8 @@ def fix_usec(s):
     else:
         return int(s)/1000
 
-
+# given a user-agent string, return (0, '') is it doesn't match the bot list
+# and (1, MATCH) if it does. used for the bot and botname fields.
 def parse_bots(ua):
     m = re_robots.search(ua, re.I)
     if m:
@@ -243,7 +247,6 @@ def field_map(lines, relevant_fields):
             else:
                 for i, col in enumerate(new_cols):
                     line[col] = vals[i]
-
         yield line
 
 
