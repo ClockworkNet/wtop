@@ -272,7 +272,7 @@ def classify_req(reqs, filter_classes=False, exclude_classes=False):
         if not r['class']:
             m = re_generic.search(r['url'])
             if m: r['class'] = m.group(1)
-            if not r['class']: r['class'] = 'unknown'
+            if not r['class']: r['class'] = '<UNKNOWN>'
         
         if filter_classes and r['class'] not in filter_classes: 
             continue 
@@ -606,6 +606,8 @@ def tail_mode(reqs, fields):
 
 ## aggregates mode. 
 # Eventually top mode may become a special case of agg mode.
+
+# sort_cols = (LIMIT, COL, COL, COL)
 MAXINT = 1<<32
 def agg_mode(reqs, agg_fields, group_by, sort_cols):
     table = {}

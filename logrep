@@ -71,36 +71,33 @@ logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES]
                         country    country name (see Geocoding, below)
 
 
-   -o FIELDS         Output only the given fields. 
+   -o FIELDS         Output only the given fields, tab-delimited.
                       
                      Example:
-                       logrep -o 'cc,msec,url' access.log
-
+                       $ logrep -o 'cc,msec,url' access.log
                        UK      34      /Madonna.jpg
                        CA      34      /Padma-Lakshmi.jpg
                        UK      34      /Shaun-Woo.jpg
                        US      184     /Ben-Stiller.jpg
+                       ...
 
+                     Aggregate functions:
                      In -m grep mode you can use aggregate functions
                      on numeric columns such as bytes and msec. Any
                      non-aggregate fields in the list will be used to
                      group the records together.
-
-                     Available functions:
                         avg(FIELD)
                         min(FIELD)
                         max(FIELD)
                         count(*)
                         sum(FIELD)
 
-                     Example:
-                        logrep -o 'status,count(*),avg(msec)' access.log
-
-                        200	4196	2424.58
+                     Example (grouped by status):
+                        $ logrep -o 'status,count(*),avg(msec)' access.log
+                        200	4196	242.58
                         302	5	79.75
                         404	1	9.00
-                        304	798	158.76
-
+                        304	798	15.76
 
 
    -l LAST_N         (grep mode only) Scan the last N log lines.
