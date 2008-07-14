@@ -8,10 +8,9 @@ logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES]
         [-g PATTERN] [-v PATTERN] [-o FIELDS] [-f FILTERS] [-q]
         [-b GROUP_BY] [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
 
-   -m MODE           There are four modes:
+   -m MODE           There are three modes:
                        - "grep" parses an entire log file (default).
                        - "tail" tails and parses the current log.
-                       - "agg" calculates min(), avg(), count(*), etc
                        - "top" shows running performance statistics.
 
    -H, -R            Shorthand for a useful but incomplete filter of 
@@ -75,11 +74,19 @@ logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES]
    -o FIELDS         Output only the given fields. 
                       
                      Example:
-                       -o 'ts,bytes,msec,url'
+                       logrep -o 'cc,msec,url' access.log
 
-                     In -m agg mode you can use aggregate functions
-                     very similar to SQL:
+                       UK      34      /Madonna.jpg
+                       CA      34      /Padma-Lakshmi.jpg
+                       UK      34      /Shaun-Woo.jpg
+                       US      184     /Ben-Stiller.jpg
 
+                     In -m grep mode you can use aggregate functions
+                     on numeric columns such as bytes and msec. Any
+                     non-aggregate fields in the list will be used to
+                     group the records together.
+
+                     Available functions:
                         avg(FIELD)
                         min(FIELD)
                         max(FIELD)
@@ -87,16 +94,16 @@ logrep  [-m top | grep | agg | tail] [-i URL_CLASSES | -e URL_CLASSES]
                         sum(FIELD)
 
                      Example:
-                        -o 'class,count(*),avg(msec)'
+                        logrep -o 'status,count(*),avg(msec)' access.log
 
-                     At the moment you cannot use aggregate functions
-                     in the -f FILTER. This will be in a future release.
+                        200	4196	2424.58
+                        302	5	79.75
+                        404	1	9.00
+                        304	798	158.76
 
 
-   -b GROUP_BY       (agg mode only) fields by which to group lines.
 
-
-   -l LAST_N         (grep and agg modes only) Scan the last N log lines
+   -l LAST_N         (grep mode only) Scan the last N log lines.
 
 
    -c CFG_FILE       Feed logrep a custom config file. By default it 
@@ -145,7 +152,7 @@ import logrep
 def runit():
     from sets import Set
     import getopt, sys, os.path
-    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:b:")
+    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:")
     grep_excludes = []
     grep_filters = []
     last_n = None
@@ -160,14 +167,14 @@ def runit():
     agg_fields = []
     has_agg = False
     group_by = []
+    sort_cols = []
         
     for o,v in opts:
         if o == '-h' or o == '-?': print cmd_options; sys.exit(0)
         if o == '-m': MODE = v
         if o == '-i': filter_classes = Set(v.split(','))
         if o == '-e': exclude_classes = Set(v.split(','))
-        if o == '-b': group_by = Set(v.split(','))
-        if o == '-o': output_fields, agg_fields, has_agg = logrep.compile_aggregates(v)
+        if o == '-o': output_fields, agg_fields, group_by, has_agg = logrep.compile_aggregates(v)
         if o == '-H': filter_string.append('bot=0')
         if o == '-R': filter_string.append('bot=1')
         if o == '-g': grep_filters.append(v)
@@ -176,6 +183,7 @@ def runit():
         if o == '-f': filter_string.append(v)
         if o == '-d': logrep.LOG_LEVEL = 2
         if o == '-q': logrep.LOG_LEVEL = 0
+        if o == '-s': sort_cols = v.split(',')
         if o == '-c': 
             if v:
                 if not os.path.exists(v):
@@ -197,20 +205,14 @@ def runit():
     if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
         raise Exception("error: can't load geoip library and you asked for cc or country fields.")
 
-    if has_agg and MODE != 'agg':
-        raise Exception("error: aggregate functions are only allowed in -m agg mode")
+    if has_agg and MODE != 'grep':
+        raise Exception("error: aggregate functions are only allowed in -m grep mode")
 
-    if not has_agg and MODE == 'agg':
-        raise Exception("error: you are in -m agg mode but no aggregate functions in (%s)" % ','.join(output_fields))
-
-    if group_by and MODE != 'agg':
-        logrep.warn("warn: -b GROUP_BY is only relevant in -m agg mode")
-
-    if not group_by and MODE == 'agg':
-        logrep.warn("warn: you are in -m agg mode without -b GROUP_BY. Only one line will be printed.")
+    if has_agg and not group_by:
+        logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
 
     if last_n and MODE not in ('agg', 'grep'):
-        logrep.warn("warn: -l LAST_N is only relevant in -m agg or -m grep modes")
+        logrep.warn("warn: -l LAST_N is only relevant in grep mode")
 
 
     # open the log(s) as a generator that yields raw lines
@@ -277,12 +279,11 @@ def runit():
         elif MODE == 'rrd':
             logrep.rrd_mode(reqs)
 
-        elif MODE == 'agg':
-            logrep.agg_mode(reqs, agg_fields, group_by)
-
-        # tail OR grep mode
         else:
-            logrep.tail_mode(reqs, output_fields)
+            if has_agg:
+                logrep.agg_mode(reqs, agg_fields, group_by, sort_cols)
+            else:
+                logrep.tail_mode(reqs, output_fields)
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")

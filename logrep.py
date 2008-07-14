@@ -471,24 +471,25 @@ def line_exclude(lines, pat):
         if not r.search(ln):
             yield ln
 
-# "sum(foo),bar,max(baz)  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
+# "sum(foo),bar,max(baz)"  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
 re_agg = re.compile(r'(?:(sum|count|avg|min|max)\(([a-z\*1]+|)\)|([a-z]+))')
 def compile_aggregates(commands):
     fields = re_agg.findall(commands)
-    output_fields = []
-    agg_fields = []
+    needed_fields = []
+    all_fields = []
+    group_by_fields = []
     has_agg = False
     for f in fields:
         if f[1] != '':
-            output_fields.append(f[1])
-            agg_fields.append((f[0:2]))
+            needed_fields.append(f[1])
+            all_fields.append((f[0:2]))
             has_agg = True
         else:
-            output_fields.append(f[2])
-            agg_fields.append((None, f[2]))
+            needed_fields.append(f[2])
+            all_fields.append((None, f[2]))
+            group_by_fields.append(f[2])
 
-    return output_fields, agg_fields, has_agg
-
+    return needed_fields, all_fields, group_by_fields, has_agg
 
 
 # This is a compiler for teeny tiny pattern match language.
@@ -606,7 +607,7 @@ def tail_mode(reqs, fields):
 ## aggregates mode. 
 # Eventually top mode may become a special case of agg mode.
 MAXINT = 1<<32
-def agg_mode(reqs, agg_fields, group_by):
+def agg_mode(reqs, agg_fields, group_by, sort_cols):
     table = {}
     cnt = 0
 
@@ -646,8 +647,14 @@ def agg_mode(reqs, agg_fields, group_by):
         for i,f in enumerate(agg_fields):
             op, field = f
             table[key][i+1] = agg_fns[op](i, r, field, table, key)
-               
-    for row in table.values():
+    
+    rows = table.values()
+
+# todo: a combination of limit and order by is much faster to calculate.
+#     if sort_col:
+#         rows.sort((lambda a,b: cmp(a[0], b[0]))                  )
+
+    for row in rows:
         print fmt % tuple(row[1:])
 
 
