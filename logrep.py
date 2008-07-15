@@ -630,7 +630,7 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols):
     agg_fns = {
         None:    (lambda i, r, field, table, key: r[field]),
         'count': (lambda i, r, field, table, key: table[key][0]),
-        'avg':   (lambda i, r, field, table, key: ((table[key][i+1] * (table[key][0]-1)) / float(table[key][0])) + (r[field] / float(table[key][0]))),
+        'avg':   (lambda i, r, field, table, key: ((table[key][i+1] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
         'sum':   (lambda i, r, field, table, key: table[key][i+1] + r[field]), 
         'min':   (lambda i, r, field, table, key: min(r[field], table[key][i+1])), 
         'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
