@@ -1,0 +1,8 @@
+This is a Python source distribution. Install it like so:
+
+  sudo python setup.py install
+
+This will put logrep and wtop in your executable path, and drop the
+default wtop.cfg file into /etc/wtop.cfg
+
+wtop/logrep require Python version 2.4 or greater.
