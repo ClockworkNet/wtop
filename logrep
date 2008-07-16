@@ -131,7 +131,7 @@ logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS]
      $ logrep -o 'class,max(bytes),avg(msec)' access.log
 
 
-14 July 2008        carlos@bueno.org       http://code.google.com/p/wtop
+0.6.1   31 July 2008    carlos@bueno.org   http://code.google.com/p/wtop
 """
 
 import logrep
@@ -142,37 +142,41 @@ def runit():
     from sets import Set
     import getopt, sys, os.path
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:")
-    grep_excludes = []
-    grep_filters = []
-    last_n = None
-    filter_classes = []
-    exclude_classes = []
-    cond_filter = None
-    cond_filter_fields = []
-    filter_string = []
-    output_fields = None
-    MODE = 'grep' # tail, top, grep, top-json
-    cfg = '/etc/wtop.cfg'
-    agg_fields = []
-    has_agg = False
-    group_by = []
-    sort_cols = []
+ 
+    last_n                   = None
+    include_classes          = []
+    exclude_classes          = []
+
+    uncompiled_field_filters = []
+    field_filter_fn          = None
+    filtered_fields          = []
+
+    output_fields            = None
+    agg_fields               = []
+    has_agg                  = False
+    group_by                 = []
+    sort_cols                = []     # experimental
+
+    MODE                     = 'grep'
+    cfg                      = '/etc/wtop.cfg'
+
+    grep_excludes            = []     # deprecated
+    grep_filters             = []     # deprecated
         
     for o,v in opts:
         if o == '-h' or o == '-?': print cmd_options; sys.exit(0)
         if o == '-m': MODE = v
-        if o == '-i': filter_classes = Set(v.split(','))
+        if o == '-i': include_classes = Set(v.split(','))
         if o == '-e': exclude_classes = Set(v.split(','))
         if o == '-o': output_fields, agg_fields, group_by, has_agg = logrep.compile_aggregates(v)
-        if o == '-H': filter_string.append('bot=0')
-        if o == '-R': filter_string.append('bot=1')
-        if o == '-g': grep_filters.append(v)
-        if o == '-v': grep_excludes.append(v)
+        if o == '-H': uncompiled_field_filters.append('bot=0')
+        if o == '-R': uncompiled_field_filters.append('bot=1')
         if o == '-l': last_n = int(v)
-        if o == '-f': filter_string.append(v)
+        if o == '-f': uncompiled_field_filters.append(v)
         if o == '-d': logrep.LOG_LEVEL = 2
         if o == '-q': logrep.LOG_LEVEL = 0
-        if o == '-s': sort_cols = v.split(',')
+        if o == '-g': grep_filters.append(v)      # deprecated
+        if o == '-v': grep_excludes.append(v)     # deprecated
         if o == '-c': 
             if v:
                 if not os.path.exists(v):
@@ -182,17 +186,17 @@ def runit():
     ## check all the config options are sane, etc.
     logrep.configure(cfg)
 
+    if MODE == 'top':
+        output_fields = ['status', 'request', 'msec', 'ts']
+
     if not output_fields:
         output_fields = logrep.DEFAULT_OUTPUT_FIELDS
 
-    if filter_string:
-        cond_filter, cond_filter_fields = logrep.compile_filter(','.join(filter_string))
-
-    if logrep.LOG_LEVEL == 2:
-        print logrep.LOG_PATTERN, MODE, filter_classes, exclude_classes, output_fields, grep_filters, grep_excludes, args
+    if uncompiled_field_filters:
+        field_filter_fn, filtered_fields = logrep.compile_filter(','.join(uncompiled_field_filters))
 
     if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
-        raise Exception("error: can't load geoip library and you asked for cc or country fields.")
+        raise Exception("error: can't load geoip library, yet you asked for cc or country fields.")
 
     if has_agg and MODE != 'grep':
         raise Exception("error: aggregate functions are only allowed in -m grep mode")
@@ -200,7 +204,7 @@ def runit():
     if has_agg and not group_by:
         logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
 
-    if last_n and MODE not in ('agg', 'grep'):
+    if last_n and MODE != 'grep':
         logrep.warn("warn: -l LAST_N is only relevant in grep mode")
 
 
@@ -229,36 +233,25 @@ def runit():
             log = logrep.gen_cat(logrep.gen_open(logfiles))
 
 
-    # various raw log line filters
+    # various raw log line filters. deprecated.
     for e in grep_excludes: log = logrep.line_exclude(log, e)
     for f in grep_filters:  log = logrep.line_filter(log, f)
 
-    # determine which fields are really necessary
-    absolutely_necessary = ('ua', 'proto', 'url', 'method')
-    if MODE == 'top':
-        absolutely_necessary = ('status', 'ip', 'proto', 'url', 'method', 'msec', 'ua', 'ts')
-
-    relevant_fields = Set(
-        tuple(output_fields) + 
-        tuple(cond_filter_fields) + 
-        absolutely_necessary)
-
-    # check to see if any derived timestamp fields like year or month are 
-    # being asked for
-    if relevant_fields.intersection(('ts', 'year', 'month', 'day', 'hour', 'minute')):
-        relevant_fields.add('ts')
-
-    # recompile the log format regexp given the relevant fields
+    # recompile the log format regexp given the relevant fields. 
+    # This can yield a big performance boost.
+    relevant_fields = logrep.field_dependencies(output_fields + filtered_fields)
     LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
 
     # parse the raw log lines into records & do any needed massage and derivation
     reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
 
-    # determine the URL class and do any class filtering necessary
-    reqs = logrep.classify_req(reqs, filter_classes, exclude_classes)
+    # pure classist discrimination
+    if include_classes or exclude_classes:
+        reqs = logrep.filter_by_class(reqs, include_classes, exclude_classes)
 
-    # apply the -f filter function, if it exists
-    if cond_filter: reqs = cond_filter(reqs)
+    # apply the filter function compiled from -f
+    if field_filter_fn: 
+        reqs = field_filter_fn(reqs)
     
     # feed the surviving records into the proper mode function
     try:
@@ -272,7 +265,7 @@ def runit():
             if has_agg:
                 logrep.agg_mode(reqs, agg_fields, group_by, sort_cols)
             else:
-                logrep.tail_mode(reqs, output_fields)
+                logrep.print_mode(reqs, output_fields)
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")

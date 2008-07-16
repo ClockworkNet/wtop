@@ -86,33 +86,34 @@ def flatten(x):
     return result
 
 
+
 # translate log format string into a column list and regexp
-restr = r'(\S+)'
-restr_skipped = r'\S+'
-requoted = r'([^"]*)'
+restr            = r'(\S+)'
+restr_skipped    = r'\S+'
+requoted         = r'([^"]*)'
 requoted_skipped = r'[^"]*'
 
 LOG_DIRECTIVES = {
-    'h' : (('ip',), restr, restr_skipped),
-    'a' : (('ip',), restr, restr_skipped),
-    'l' : (('auth',), restr, restr_skipped),
-    'u' : (('username',), restr, restr_skipped),
-    't' : (('ts',), r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
-    'r' : (('method', 'url', 'proto'), r'(\S+) (\S+) (\S+)', r'\S+ \S+ \S+'),
-    'm' : (('method',), restr, restr_skipped),
-    'D' : (('msec',), restr, restr_skipped),
-    'q' : (('query',), restr, restr_skipped),
-    'D' : (('msec',), restr, restr_skipped),
-    's' : (('status',), restr, restr_skipped),
-    'b' : (('bytes',), restr, restr_skipped),
-    'B' : (('bytes',), restr, restr_skipped),
-    'v' : (('domain',), restr, restr_skipped),
-    'V' : (('domain',), restr, restr_skipped),
-    'p' : (('port',), restr, restr_skipped),
-    '{ratio}n' : (('ratio',), requoted, requoted_skipped), 
-    '{host}i' : (('host',), requoted, requoted_skipped), 
-    '{referer}i' : (('ref',), requoted, requoted_skipped), 
-    '{user-agent}i' : (('ua',), requoted, requoted_skipped)
+    'h' : ('ip',         restr, restr_skipped), # note %h may clobber %a
+    'a' : ('ip',         restr, restr_skipped),
+    'l' : ('auth',       restr, restr_skipped),
+    'u' : ('username',   restr, restr_skipped),
+    't' : ('ts',         r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
+    'r' : ('request',    r'(\S+ \S+ \S+)', r'\S+ \S+ \S+'),
+    'm' : ('method',     restr, restr_skipped),
+    'D' : ('msec',       restr, restr_skipped),
+    'q' : ('query',      restr, restr_skipped),
+    'D' : ('msec',       restr, restr_skipped),
+    's' : ('status',     restr, restr_skipped),
+    'b' : ('bytes',      restr, restr_skipped),
+    'B' : ('bytes',      restr, restr_skipped),
+    'v' : ('domain',     restr, restr_skipped),
+    'V' : ('domain',     restr, restr_skipped),
+    'p' : ('port',       restr, restr_skipped),
+    '{ratio}n' : ('ratio', requoted, requoted_skipped), 
+    '{host}i' : ('host', requoted, requoted_skipped), 
+    '{referer}i' : ('ref', requoted, requoted_skipped), 
+    '{user-agent}i' : ('ua', requoted, requoted_skipped)
 }
 
 # lower-case some apache header options.
@@ -127,20 +128,16 @@ def format2regexp(fmt, relevant_fields=()):
     colnames = []
     pat = fmt
     for k in directives:
-        if not LOG_DIRECTIVES.has_key(k):
-            if k.find('{') > -1:
-                pass
-            else:   
-                continue
-        d = LOG_DIRECTIVES[k]
+        if not LOG_DIRECTIVES.has_key(k) and not k.find('{') > -1:
+            continue
 
-        # gah! fugly! that d[0][0] is a black mark on my soul.
-        # reason for this is %r, which maps to THREE fields.
-        atom = d[1]
-        if not relevant_fields or d[0][0] in relevant_fields:
-            colnames.append(d[0])
+        field, pattern, skip_pattern = LOG_DIRECTIVES[k]
+
+        atom = pattern
+        if not relevant_fields or field in relevant_fields:
+            colnames.append(field)
         else:
-            atom = d[2]
+            atom = skip_pattern
 
         if k.find('{') > -1:
             p = re.compile('%[\>\<\!,\d]*'+k.replace('}', '.').replace('{', '.'), re.I)
@@ -217,15 +214,27 @@ def parse_bots(ua):
         return (1, ua[m.start():m.end()])
     return (0, '')
 
+# '/'         --> 'home'
+# '/foo.jpg'  --> 'img'
+def classify_url(url):
+    for classname, pattern in re_classes:
+        if pattern.search(url):
+            return classname
+    m = re_generic.search(url)
+    if m: return m.group(1)
+    return 'UNKNOWN'
 
-# special field massage & mapping to derived fields
+
+# field massage & mapping to derived fields
 col_fns = [
     ('msec',    ('msec',),    fix_usec),
     ('status',  ('status',),  int),
     ('bytes',   ('bytes',),   safeint),
-    ('ua',      ('uas',),     (lambda s: s[:30])),
     ('ip',      ('ipcnt',),   count_ips),
     ('ua',      ('bot', 'botname'), parse_bots),
+    ('ua',      ('uas',),     (lambda s: s[:30])),
+    ('request', ('method', 'url', 'proto'), (lambda s: s.split(' '))),
+    ('url',     ('class',),   classify_url),
     ('ts',      ('ts', 'year', 'month', 'day', 'hour', 'minute'), apache2unixtime),
 ]
 
@@ -235,10 +244,10 @@ if geocoder:
     col_fns.append(('ip', ('cc',),      geocoder.country_code_by_addr))
 
 
+# apply the col_fns to the records
 def field_map(lines, relevant_fields):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
-
     for line in lines:
         for source_col, new_cols, fn in relevant_col_fns:
             vals = fn(line[source_col])
@@ -246,11 +255,22 @@ def field_map(lines, relevant_fields):
                 line[new_cols[0]] = vals
             else:
                 for i, col in enumerate(new_cols):
-                    line[col] = vals[i]
+                    line[col] = vals[i] 
         yield line
 
+# trace dependencies of fields and return all fields needed to calculate the ones asked for.
+# eg: 'class' depends on 'url' which depends on 'request'.
+# two levels is ok for now and I'm too tired to write something recursive
+def field_dependencies(requested_fields):
+    deps = Set(requested_fields)
+    deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
+    deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
+    return deps
 
-def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):    
+
+# This, believe it or not, is the work function. It takes in raw log
+# lines and emits a generator of mapped, derived, massaged log records.
+def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     logpat     = re.compile(LOG_PATTERN) 
     groups     = (logpat.search(line) for line in loglines) 
     tuples     = (g.groups() for g in groups if g) 
@@ -259,29 +279,12 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     return log
 
 
-# takes in a sequence of dicts returned by apache_log and applies
-# the classification regexps
-def classify_req(reqs, filter_classes=False, exclude_classes=False):
+# this could be implemented as a -f filter, but this is faster.
+def filter_by_class(reqs, include, exclude):
     for r in reqs:
-        r['class'] = ''
-        for c in re_classes:
-            if c[1].search(r['url']):
-                r['class'] = c[0]
-                break
-        
-        if not r['class']:
-            m = re_generic.search(r['url'])
-            if m: r['class'] = m.group(1)
-            if not r['class']: r['class'] = '<UNKNOWN>'
-        
-        if filter_classes and r['class'] not in filter_classes: 
-            continue 
-
-        if exclude_classes and r['class'] in exclude_classes: 
-            continue 
-
+        if (include and r['class'] not in include) or (exclude and r['class'] in exclude):
+            continue
         yield r
-
 
 
 # access_log.YYYYMMDD
@@ -598,18 +601,17 @@ def apache_top_mode(reqs):
         print "\n".join(buf) + "\n\n\n"
 
 
-# actually it's both tail and grep mode
-def tail_mode(reqs, fields):
+# for both tail and grep mode
+def print_mode(reqs, fields):
     for r in reqs:
         print '\t'.join([str(r[k]) for k in fields])
 
 
-## aggregates mode. 
-# Eventually top mode may become a special case of agg mode.
-
-# sort_cols = (LIMIT, COL, COL, COL)
+## how do we indicate sort direction?
+## sort_cols = '100:1d,3a'
+## sort_cols = (100, (1, DESC), (3 ASC))
 MAXINT = 1<<32
-def agg_mode(reqs, agg_fields, group_by, sort_cols):
+def agg_mode(reqs, agg_fields, group_by, sort_cols=None):
     table = {}
     cnt = 0
 
@@ -636,6 +638,9 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols):
         'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
         }
 
+    # todo: for more sophisticated things like variance, deviation, etc, should we wait until
+    # it's all done and rip through the records instead of re-calculating intermediates?
+
     for r in reqs:
         cnt += 1
         if cnt % 5000 == 0: warn ('processed %d lines...' % cnt)
@@ -649,12 +654,9 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols):
         for i,f in enumerate(agg_fields):
             op, field = f
             table[key][i+1] = agg_fns[op](i, r, field, table, key)
+
     
     rows = table.values()
-
-# todo: a combination of limit and order by is much faster to calculate.
-#     if sort_col:
-#         rows.sort((lambda a,b: cmp(a[0], b[0]))                  )
 
     for row in rows:
         print fmt % tuple(row[1:])
@@ -830,7 +832,4 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100, do_hist
             for k in classes.keys():
                 create_graph(k, cur_time, 1800, rpslim, mseclim, 'brief')
             create_rrd_page(sorted(classes.keys()), rpslim, mseclim)
-
-
-
 
