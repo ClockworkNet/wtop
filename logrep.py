@@ -49,6 +49,7 @@ re_classes = None
 
 config = {}
 
+
 # yes, this is ugly.
 def configure(cfg='/etc/wtop.cfg'):
     global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MIN_RPS,generic,robots,classes,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
@@ -93,8 +94,9 @@ restr_skipped    = r'\S+'
 requoted         = r'([^"]*)'
 requoted_skipped = r'[^"]*'
 
+# {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
-    'h' : ('ip',         restr, restr_skipped), # note %h may clobber %a
+    'h' : ('ip',         restr, restr_skipped), # NB: %h may clobber %a or vice-versa
     'a' : ('ip',         restr, restr_skipped),
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
@@ -105,12 +107,13 @@ LOG_DIRECTIVES = {
     'q' : ('query',      restr, restr_skipped),
     'D' : ('msec',       restr, restr_skipped),
     's' : ('status',     restr, restr_skipped),
-    'b' : ('bytes',      restr, restr_skipped),
-    'B' : ('bytes',      restr, restr_skipped),
-    'v' : ('domain',     restr, restr_skipped),
-    'V' : ('domain',     restr, restr_skipped),
+    'b' : ('bytes',      restr, restr_skipped), 
+    'B' : ('bytes',      restr, restr_skipped), # NB: may change to 'bytes_out'
+    'I' : ('bytes_in',   restr, restr_skipped),
+    'v' : ('domain',     restr, restr_skipped), # Host header
+    'V' : ('domain',     restr, restr_skipped), # actual vhost. May clobber %v
     'p' : ('port',       restr, restr_skipped),
-    '{ratio}n' : ('ratio', requoted, requoted_skipped), 
+    '{ratio}n' : ('ratio', requoted, requoted_skipped), #todo: need generic %{foo}X parsing?
     '{host}i' : ('host', requoted, requoted_skipped), 
     '{referer}i' : ('ref', requoted, requoted_skipped), 
     '{user-agent}i' : ('ua', requoted, requoted_skipped)
@@ -132,9 +135,8 @@ def format2regexp(fmt, relevant_fields=()):
             continue
 
         field, pattern, skip_pattern = LOG_DIRECTIVES[k]
-
         atom = pattern
-        if not relevant_fields or field in relevant_fields:
+        if (not relevant_fields) or (field in relevant_fields):
             colnames.append(field)
         else:
             atom = skip_pattern
@@ -144,8 +146,6 @@ def format2regexp(fmt, relevant_fields=()):
             pat = p.sub(atom, pat, re.I)
         else:
             pat = re.sub('%[\>\<\!,\d]*'+k, atom, pat)
-
-
 
     leftover = red.findall(pat)
     if leftover:
@@ -348,10 +348,10 @@ def follow(thefile):
          if not line:
              # hack: if the log is silent for awhile, it may have been rotated.
              if time.time() - last_seen > 30:
-                 logfile = latest_log()[0]
+                 logfile = latest_log()[0] # todo: broken & stupid. necessary for netscaler
                  warn('no input for 30 seconds. reopening (%s)' % logfile)
                  thefile.close()
-                 thefile = open(logfile) # todo: broken & stupid. necessary for netscaler
+                 thefile = open(logfile) 
                  thefile.seek(0,2)
                  last_seen = time.time()   # so we don't start going nuts on the file.
 
@@ -366,8 +366,8 @@ class circular_buffer(list):
     def __init__(self, length, initval=0):
         self.pointer = 0
         self += [initval] * length
-        self.length = length
-        self.cnt = 0
+        self.length = length    # actually maxlength
+        self.cnt = 0            # real length
         
     def append(self, item):
         self.pointer %= self.length
@@ -473,6 +473,16 @@ def line_exclude(lines, pat):
     for ln in lines:
         if not r.search(ln):
             yield ln
+
+
+def compile_orderby(commands):
+    c = commands.split(':')
+    limit = int(c[0])
+    order_by = 0
+    if len(c) > 1:
+        order_by = int(c[1])
+    return limit, order_by
+
 
 # "sum(foo),bar,max(baz)"  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
 re_agg = re.compile(r'(?:(sum|count|avg|min|max)\(([a-z\*1]+|)\)|([a-z]+))')
@@ -607,11 +617,12 @@ def print_mode(reqs, fields):
         print '\t'.join([str(r[k]) for k in fields])
 
 
+
 ## how do we indicate sort direction?
 ## sort_cols = '100:1d,3a'
 ## sort_cols = (100, (1, DESC), (3 ASC))
 MAXINT = 1<<32
-def agg_mode(reqs, agg_fields, group_by, sort_cols=None):
+def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0):
     table = {}
     cnt = 0
 
@@ -619,7 +630,7 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols=None):
     # default depends on the agg function. Also take the opportunity
     # here to build a formatting string for printing the final results.
     fmt        = ['%s'] * len(agg_fields)
-    blank      = [0]    * (len(agg_fields)+1)
+    blank      = [0]    * (len(agg_fields)+1) # that +1 is for a count column
     for i,f in enumerate(agg_fields):
         op, field = f
         if op == 'min':
@@ -638,9 +649,12 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols=None):
         'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
         }
 
+    sort_buffer_length = limit * 12
+
     # todo: for more sophisticated things like variance, deviation, etc, should we wait until
     # it's all done and rip through the records instead of re-calculating intermediates?
-
+    # what about functions that depend on other functions?
+    running_list = {}
     for r in reqs:
         cnt += 1
         if cnt % 5000 == 0: warn ('processed %d lines...' % cnt)
@@ -649,14 +663,24 @@ def agg_mode(reqs, agg_fields, group_by, sort_cols=None):
         if not table.has_key(key):
             table[key] = copy(blank)
 
-        table[key][0] += 1 # line count is always col 0, even if not asked for
+        table[key][0] += 1 # record count 
         
         for i,f in enumerate(agg_fields):
             op, field = f
             table[key][i+1] = agg_fns[op](i, r, field, table, key)
 
+
+        # the agg function collects sort_buffer_length records in a temporary dict,
+        # sorts them, removes all but the top N and repeats. This is how we get top
+        # N stats somewhat efficiently.
+        if limit:
+            running_list[key] = table[key]
+            if cnt % sort_buffer_length:
+                running_list = dict(sorted(running_list.iteritems(), key=lambda (k,v): v[order_by], reverse=True)[0:limit])
     
     rows = table.values()
+    if limit:
+        rows = sorted(running_list.values(), key=lambda v: v[order_by], reverse=True)[0:limit]
 
     for row in rows:
         print fmt % tuple(row[1:])

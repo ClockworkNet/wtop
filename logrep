@@ -94,6 +94,24 @@ logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS]
                         404	1	9.00
                         304	798	15.76
 
+   -s LIMIT:FIELD    (Experimental)
+                     Use this option to get the top N records by some 
+                     field in the -o argument. It must
+                     be in the form LIMIT or LIMIT:FIELD, where LIMIT 
+                     is the number of records to return and FIELD is the 
+                     column number in the -o option, starting with 1. By
+                     default records are ordered by count(*) descending.
+
+                     Example (the slowest urls on average):
+                        $ logrep -o 'url,avg(msec)' -s '3:2'
+                        /home	280.54
+                        /wiki	191.09
+                        /about	178.91
+
+                     (No, there is not yet asc/desc sort or multiple
+                     column sort. There are surprising performance
+                     problems with those features. Coming soon.)
+
 
    -l LAST_N         (grep mode only) Scan the last N log lines.
 
@@ -141,7 +159,7 @@ import logrep
 def runit():
     from sets import Set
     import getopt, sys, os.path
-    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:")
+    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:")
  
     last_n                   = None
     include_classes          = []
@@ -155,7 +173,8 @@ def runit():
     agg_fields               = []
     has_agg                  = False
     group_by                 = []
-    sort_cols                = []     # experimental
+    order_by                 = None     # experimental
+    agg_limit                = 0
 
     MODE                     = 'grep'
     cfg                      = '/etc/wtop.cfg'
@@ -175,6 +194,7 @@ def runit():
         if o == '-f': uncompiled_field_filters.append(v)
         if o == '-d': logrep.LOG_LEVEL = 2
         if o == '-q': logrep.LOG_LEVEL = 0
+        if o == '-s': agg_limit, order_by = logrep.compile_orderby(v)
         if o == '-g': grep_filters.append(v)      # deprecated
         if o == '-v': grep_excludes.append(v)     # deprecated
         if o == '-c': 
@@ -263,7 +283,7 @@ def runit():
 
         else:
             if has_agg:
-                logrep.agg_mode(reqs, agg_fields, group_by, sort_cols)
+                logrep.agg_mode(reqs, agg_fields, group_by, order_by, agg_limit)
             else:
                 logrep.print_mode(reqs, output_fields)
 
