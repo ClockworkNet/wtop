@@ -12,12 +12,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
    -m MODE           There are three modes:
    --mode              - "grep" parses an entire log file (default).
                        - "tail" reads from the end of the file.
-                       - "top"  shows aggregate performance stats.
-
-   -H, -R            Shorthand for a useful but incomplete filter of 
-   --humans-only     robot user-agents. Equivalent to --filter 'bot=0'
-   --robots-only     or --filter 'bot=1'
-
+                       - "top"  shows running performance stats.
 
    -i, -e CLASSES    Include or exclude the given URL "classes". You can
    --include         configure logrep to classify URLs by a set of 
@@ -28,7 +23,6 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      Examples: 
                         --include "home,search,wiki"
                         --exclude "img,xml,js"
-
 
    -f FILTERS        -f filters act on named fields.
    --filter          There is support for strings & numbers, greater 
@@ -62,6 +56,11 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         country    country name (see Geocoding, below)
 
 
+   -H, -R            Shorthand for a useful but incomplete filter of 
+   --humans-only     robot user-agents. Equivalent to --filter 'bot=0'
+   --robots-only     or --filter 'bot=1'
+
+
    -o FIELDS         Output only the given fields, tab-delimited.
    --output                   
                      Example:
@@ -76,12 +75,12 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      In -m grep mode you can use aggregate functions
                      on numeric fields such as bytes and msec. Any
                      non-aggregate fields in the list will be used to
-                     group the records together.
-                        avg(FIELD)
+                     group records together.
+                        avg(FIELD)   mean
                         min(FIELD)
                         max(FIELD)
                         count(*)
-                        sum(FIELD)   
+                        sum(FIELD)
                         var(FIELD)   population variance
                         dev(FIELD)   std deviation (sqrt of variance)
 
@@ -109,12 +108,12 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         12	4	1680468
                         ...
 
-                     Example (the 3 most popular URLs):
-                     $ logrep -o 'url,count(*)' -s '3:1'
+                     Example (the 10 most popular URLs):
+                     $ logrep -o 'url,count(*)' -s '10:2'
                         /home    23718
                         /wiki    8211
                         /about   2703
-
+                        ...
 
    -l LAST_N         (grep mode only) Scan the last N log lines.
    --last
@@ -126,9 +125,9 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
 
-   -x-tmp-dir DIR    Tell logrep to use the specified directory for
-   (EXPERIMENTAL)    temporary files. If you have run out of memory 
-                     trying to execute a logrep query, try this option.
+   -x-tmp-dir DIR    Tell logrep to spill temporary data into the 
+   (EXPERIMENTAL)    specified directory. Useful for grep mode jobs
+                     that you see using a lot of RAM.
 
    LOG_FILE          The path to a log file. By default logrep will
                      read from the file path specified in /etc/wtop.cfg

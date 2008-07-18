@@ -633,7 +633,7 @@ def id_from_dict_keys(h, keys, byte_len=6):
 ## how do we indicate sort direction?
 ## sort_cols = '100:1d,3a'
 ## sort_cols = (100, (1, DESC), (3 ASC))
-MAXINT = 1<<32
+MAXINT = 1<<64
 def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
     table = {}
     cnt = 0
@@ -666,7 +666,7 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     # the None function is for pass-through fields eg 'class' in 'class,max(msec)'
     agg_fns = {
         None:    (lambda i, r, field, table, key: r[field]),
-        'count': (lambda i, r, field, table, key: table[key][0]), # just copied from col 0
+        'count': (lambda i, r, field, table, key: table[key][0]), # count(*) is always just copied from col 0
         'avg':   (lambda i, r, field, table, key: ((table[key][i+1] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
         'sum':   (lambda i, r, field, table, key: table[key][i+1] + r[field]), 
         'min':   (lambda i, r, field, table, key: min(r[field], table[key][i+1])), 
@@ -678,12 +678,13 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     # post-processing for more complex aggregates
     # todo: arg signatures are not generic
     post_fns = {
-        # squared sums - (sums squared / count) / count
         'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
         'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)))
     }
 
+    # various stuff needed if we are also running a limit/sort
     if limit:
+        running_list = {}
         sort_buffer_length = limit * 10
         # fns to return the keys for sorting
         if len(order_by) > 1:
@@ -693,8 +694,6 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
             key_fn =  (lambda v: v[1][order_by[0]])
             key_fn2 = (lambda v:    v[order_by[0]])
 
-
-    running_list = {}
     for r in reqs:
         cnt += 1
         if cnt % 5000 == 0: 
@@ -708,23 +707,25 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
         if not table.has_key(key):
             table[key] = copy(blank)
 
-        table[key][0] += 1 # record count 
+        table[key][0] += 1 # always keep record count regardless of what the use asked for
         for idx,(op,field) in enumerate(agg_fields):
             table[key][idx+1] = agg_fns[op](idx, r, field, table, key)
 
-        # the agg function collects sort_buffer_length records in a temporary dict,
-        # sorts them, removes all but the top N and repeats. This is how we get top
-        # N stats somewhat efficiently.
+        # Here we collect sort_buffer_length records in a running list.
+        # Then we sort them, remove all but the top N, then repeat. It's
+        # a cheap way to "sort" a large list when you only want the top N.
+        # this works because the records are constantly updated from table.
         if limit:
             running_list[key] = table[key]
             if cnt % sort_buffer_length:
                 running_list = dict(sorted(running_list.iteritems(), key=key_fn, reverse=descending)[0:limit])
     
-    if limit:
+    if limit: # last little sort & prune
         rows = sorted(running_list.values(), key=key_fn2, reverse=descending)[0:limit]
     else:
         rows = table.values()
 
+    # todo: the arg signature is not generic. what other agg functions do people want?
     if needed_post_fns:
         for i in xrange(len(rows)):
             for (fn, col_idx) in needed_post_fns:
@@ -733,8 +734,12 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     for row in rows:
         print fmt % tuple(row[1:])
 
-
-
+    if tmpfile:
+        table.close()
+        # hack: shelve module has no way to delete, and does not tell you it adds '.db'
+        # I want this to scream if it fails because I want to know if I'm not deleting
+        # potentially hugemongous files.
+        os.remove(tmpfile + '.db') 
 
 ## experimental RRDtool mode for generating timeseries graphs
 def normalize(lst, total, scale):
