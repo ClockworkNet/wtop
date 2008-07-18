@@ -13,7 +13,9 @@ except:
 
 
 LOG_LEVEL = 1  # 0 == quiet, 1 == normal, 2 == debug
-
+DISC_SYNC_CNT = 100000        # number of records to hold in memory before flushing to disk
+SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
+PROGRESS_INTERVAL = 20000     # ie warn('processed X lines...')
 
 def warn(s):
     if LOG_LEVEL < 1: return
@@ -630,11 +632,21 @@ def id_from_dict_keys(h, keys, byte_len=6):
     return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
 
 
-## how do we indicate sort direction?
-## sort_cols = '100:1d,3a'
-## sort_cols = (100, (1, DESC), (3 ASC))
+def keyfns(order_by):
+    if len(order_by) > 1:
+        key_fn =  (lambda v: [v[1][i] for i in order_by])
+        key_fn2 = (lambda v: [v[i]    for i in order_by])
+    else:
+        key_fn =  (lambda v: v[1][order_by[0]])
+        key_fn2 = (lambda v:    v[order_by[0]])
+    return key_fn, key_fn2
+
+def sort_fn(order_by, descending, limit):
+    key_fn, key_fn2 = keyfns(order_by)
+    return (lambda table: sorted(table.itervalues(), key=key_fn2, reverse=descending)[0:limit])
+
 MAXINT = 1<<64
-def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
+def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
     table = {}
     cnt = 0
     using_disk = False
@@ -667,16 +679,15 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     agg_fns = {
         None:    (lambda i, r, field, table, key: r[field]),
         'count': (lambda i, r, field, table, key: table[key][0]), # count(*) is always just copied from col 0
-        'avg':   (lambda i, r, field, table, key: ((table[key][i+1] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
-        'sum':   (lambda i, r, field, table, key: table[key][i+1] + r[field]), 
-        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i+1])), 
-        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
-        'var':   (lambda i, r, field, table, key: (table[key][i+1][0]+r[field], table[key][i+1][1]+(r[field]**2))), 
-        'dev':   (lambda i, r, field, table, key: (table[key][i+1][0]+r[field], table[key][i+1][1]+(r[field]**2))), 
+        'sum':   (lambda i, r, field, table, key: table[key][i] + r[field]), 
+        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i])), 
+        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i])), 
+        'avg':   (lambda i, r, field, table, key: ((table[key][i] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
+        'var':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))), 
+        'dev':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))), 
     }
 
     # post-processing for more complex aggregates
-    # todo: arg signatures are not generic
     post_fns = {
         'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
         'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)))
@@ -685,22 +696,11 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     # various stuff needed if we are also running a limit/sort
     if limit:
         running_list = {}
-        sort_buffer_length = limit * 10
-        # fns to return the keys for sorting
-        if len(order_by) > 1:
-            key_fn =  (lambda v: [v[1][i] for i in order_by])
-            key_fn2 = (lambda v: [v[i]    for i in order_by])
-        else:
-            key_fn =  (lambda v: v[1][order_by[0]])
-            key_fn2 = (lambda v:    v[order_by[0]])
+        key_fn, key_fn2 = keyfns(order_by)
 
     for r in reqs:
         cnt += 1
-        if cnt % 5000 == 0: 
-            warn ('processed %d lines...' % cnt)
-        if using_disk and cnt % 100000 == 0:
-            warn ('sync()ing tmpfile to disk...')
-            table.sync()
+        if cnt % PROGRESS_INTERVAL == 0: warn ('processed %d lines...' % cnt)
 
         # HACK: to save RAM, key is the first 6 bytes of the md5 of the group_by 
         # fields. This should give collision *resistance* for up to 10^7 keys.
@@ -710,35 +710,47 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
 
         table[key][0] += 1 # always keep record count regardless of what the user asked for
         for idx,(op,field) in enumerate(agg_fields):
-            table[key][idx+1] = agg_fns[op](idx, r, field, table, key)
+            table[key][idx+1] = agg_fns[op](idx+1, r, field, table, key)
 
-        # Here we collect sort_buffer_length records in a running list.
-        # Then we sort them, remove all but the top N, then repeat. It's
-        # a cheap way to "sort" a large list when you only want the top N.
-        # this works because the records are constantly updated from table.
+        # sort & prune: It's a space-saving way to sort a large list when you only want the top N.
         if limit:
             running_list[key] = table[key]
-            if cnt % sort_buffer_length:
+            if cnt % SORT_BUFFER_LENGTH:
                 running_list = dict(sorted(running_list.iteritems(), key=key_fn, reverse=descending)[0:limit])
+
+        if using_disk and cnt % DISC_SYNC_CNT == 0:
+            warn ('sync()ing records to disk...')
+            table.sync()
+            warn ('done.')
     
-    if limit: # last little sort & prune
-        rows = sorted(running_list.values(), key=key_fn2, reverse=descending)[0:limit]
+    if limit: 
+        records = running_list
     else:
-        rows = table.values()
+        records = table
 
     # todo: the arg signature is not generic. what other agg functions do people want?
     if needed_post_fns:
-        for i in xrange(len(rows)):
+        cnt = 0
+        for k in records.iterkeys():
             for (fn, col_idx) in needed_post_fns:
-                rows[i][col_idx] = post_fns[fn](rows[i][col_idx][0], rows[i][col_idx][1], rows[i][0])
+                records[k][col_idx] = post_fns[fn](records[k][col_idx][0], records[k][col_idx][1], records[k][0])
+            cnt += 1
+            if using_disk and cnt % DISC_SYNC_CNT == 0:
+                warn ('sync()ing records to disk...')
+                table.sync()
+                warn ('done.')
 
+
+    # return the records & printing format, and optionally the sorting function.
+    # for silly reasons we have to also return the tmpfile and the table object.
+    return records, fmt, tmpfile, table
+
+def agg_mode(rows, fmt):
     for row in rows:
         print fmt % tuple(row[1:])
 
-    if tmpfile:
-        table.close()
-        # hack: shelve module has no way to delete, and does not tell you it adds '.db'
-        os.remove(tmpfile + '.db') 
+
+
 
 ## experimental RRDtool mode for generating timeseries graphs
 def normalize(lst, total, scale):

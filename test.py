@@ -16,6 +16,7 @@ tests = (
     ("-f", 'url!~/q/,msec<500,bot=1', '-o', 'url,msec,bot,ts,class,bytes'),
 )
 
+"""time ./logrep --config wtop.cfg --output='status,count(*),dev(bytes),avg(bytes),min(bytes),max(bytes)' --x-tmp-dir='/tmp' -s '10:3:a' -q access.log """
 
 import time, os, sys, cPickle
 from subprocess import call

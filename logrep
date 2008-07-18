@@ -131,6 +131,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
    LOG_FILE          The path to a log file. By default logrep will
                      read from the file path specified in /etc/wtop.cfg
+                     If you specify '-', logrep will read from STDIN.
 
  GEOCODING:
     logrep will use the MaxMind GeoIP library if it is installed. This
@@ -163,11 +164,11 @@ import logrep
 
 def runit():
     from sets import Set
-    import getopt, sys, os.path, random
+    import getopt, sys, os.path, random, shelve
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
-            'x-tmp-dir='))
+            'x-tmp-dir=', 'x-cores=', 'x-thread-id=', 'x-thread-output='))
  
     last_n                   = None
     include_classes          = []
@@ -189,6 +190,10 @@ def runit():
     MODE                     = 'grep'
     cfg                      = '/etc/wtop.cfg'
 
+    x_cores                  = None    # experimental multicore
+    x_thread_id              = 0
+    x_thread_output          = None
+
     grep_excludes            = []     # deprecated
     grep_filters             = []     # deprecated
         
@@ -209,13 +214,7 @@ def runit():
             uncompiled_field_filters.append('bot=1')
         if o in ('-l', '--last'):
             last_n = int(v)
-        if o in ('--x-tmp-dir'):
-            if not os.path.exists(v) or not(os.path.isdir(v)):
-                raise Exception("'%s' is not a directory" % v)
-            try:
-                x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
-            except (OSError, IOError), (errno, strerror):
-                raise Exception("Could not create temp file in '%s': %s" % (v, strerror))
+
                 
         if o in ('-f', '--filter'):
             uncompiled_field_filters.append(v)
@@ -225,16 +224,32 @@ def runit():
             logrep.LOG_LEVEL = 0
         if o in ('-s', '--sort'):
             agg_limit, order_by, order_descending = logrep.compile_orderby(v)
-        if o in ('-g'):
-            grep_filters.append(v)      # deprecated
-        if o in ('-v'):
-            grep_excludes.append(v)     # deprecated
         if o in ('-c', '--config'):
             if v:
                 if not os.path.exists(v):
                     raise Exception("can't read config file: '%s'" % v)
                 cfg = v
-                
+
+        # experimental
+        if o in ('--x-cores'):
+            x_cores = min(int(v), 8)
+        if o in ('--x-thread-id'):
+            x_thread_id = int(v)
+        if o in ('--x-thread-output'):
+            x_thread_output = v
+
+
+
+        if o in ('--x-tmp-dir'):
+            if not os.path.exists(v) or not(os.path.isdir(v)):
+                raise Exception("'%s' is not a directory" % v)
+            x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
+        
+        # deprecated
+        if o in ('-g'): grep_filters.append(v)
+        if o in ('-v'): grep_excludes.append(v)
+
+
     ## check all the config options are sane, etc.
     logrep.configure(cfg)
 
@@ -279,13 +294,81 @@ def runit():
         elif args[0] == 'yesterday' or args[0] == 'y':
             logfiles = logrep.yesterdays_logs()
 
-        else: # explicit file
+        elif args[0] == '-':
+            log = sys.stdin
+
+        else: # explicit file.
             logfiles = [args[0]] #logfiles = logs_for_date(args[0])
 
-        if last_n:
-            log = logrep.tail_n(logfiles[-1], last_n)
-        else:       
-            log = logrep.gen_cat(logrep.gen_open(logfiles))
+        if not log:
+            if last_n:
+                log = logrep.tail_n(logfiles[-1], last_n)
+            else:       
+                log = logrep.gen_cat(logrep.gen_open(logfiles))
+
+
+    # multicore flag! This means we massage the arguments a bit, then popen() child processes
+    # to do the actual work.
+    if x_cores and not x_thread_id:
+        from subprocess import Popen, PIPE
+        child_argv = sys.argv
+
+        # if there is an explicit log file in the args, kill it for children.
+        if args: del child_argv[-1]
+
+        children = []
+        outputs = []
+        for i in range(x_cores):
+            logrep.warn('starting thread %d' % (i+1))
+            outputs.append('/tmp/logrep-thread-%d.tmp'%(i+1)) # todo... bad.
+            extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i],  '-']
+            children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=PIPE, stderr=sys.stderr, close_fds=True))
+
+        go = True
+        while go:
+            for c in children:
+                try:
+                    line = log.next()
+                except:
+                    go = False
+                    break
+                c.stdin.write(line)
+
+        # now tell them they've been good and put them to bed.
+        for c in children:
+            c.stdin.close()
+            c.wait()
+
+        merge_fns = {
+            None:    (lambda a,b: a),
+            'count': (lambda a,b: a+b),
+            'sum':   (lambda a,b: a+b),
+            'min':   (lambda a,b: min(a,b), 
+            'max':   (lambda a,b: max(a,b),
+            'avg':   (lambda a,b: (a+b)/2.0),  # heh.
+            'var':   (lambda a,b: a),
+            'dev':   (lambda a,b: a),
+        }
+
+        records = {}
+        fmt = None
+        for o in outputs:
+            s = shelve.open(o)
+            for k,v in s['records']:
+                if records.has_key(k):
+                    for idx,col in enumerate(v):
+                        records[k][idx] = 
+                else:
+                    records[k] = v
+            fmt = s['fmt']
+            s.close()
+
+        sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
+        rows = sort_fn(records)
+        for r in rows:
+            print fmt % tuple(r[1:])
+
+        sys.exit(0)
 
 
     # various raw log line filters. deprecated.
@@ -321,7 +404,29 @@ def runit():
 
         else:
             if has_agg:
-                logrep.agg_mode(reqs, agg_fields, group_by, order_by, agg_limit, order_descending, x_tmp_file)
+                records, fmt, tmpfile, table = logrep.calculate_aggregates(reqs, agg_fields, group_by, order_by, agg_limit, order_descending, x_tmp_file)
+
+                # if I'm a child thread, save output to file instead.
+                if x_thread_output:
+                    s = shelve.open(x_thread_output)
+                    s.update({'records':records, 'fmt':fmt})
+                    s.sync()
+                    s.close()
+
+                # sort, prune & print it all out.
+                else:
+                    if agg_limit:
+                        sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
+                        rows = sort_fn(records)
+                    else:
+                        rows = records.values()
+                    logrep.agg_mode(rows, fmt)
+
+                if tmpfile:
+                    table.close()
+                    # hack: shelve module has no way to delete, and does not tell you it adds '.db'
+                    os.remove(tmpfile + '.db') 
+
             else:
                 logrep.print_mode(reqs, output_fields)
 
