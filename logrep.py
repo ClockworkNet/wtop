@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import os, math, fnmatch, re, time, calendar, string, socket, sys
+import os, math, fnmatch, re, time, calendar, string, socket, sys, md5
 from copy import copy
 from sets import Set
 geocoder = None
@@ -474,18 +474,21 @@ def line_exclude(lines, pat):
         if not r.search(ln):
             yield ln
 
-
+# 100:1,2:desc --> limit 100, column 1 then column 2, descending order
 def compile_orderby(commands):
     c = commands.split(':')
     limit = int(c[0])
     order_by = 0
+    descending = True
     if len(c) > 1:
-        order_by = int(c[1])
-    return limit, order_by
+        order_by = map(int, c[1].split(','))
+    if len(c) > 2:
+        descending = (c[2][0].lower() == 'd') # True: descending, False: ascending
+    return limit, order_by, descending
 
 
 # "sum(foo),bar,max(baz)"  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
-re_agg = re.compile(r'(?:(sum|count|avg|min|max)\(([a-z\*1]+|)\)|([a-z]+))')
+re_agg = re.compile(r'(?:(sum|count|avg|min|max|var|dev)\(([a-z\*1]+|)\)|([a-z]+))')
 def compile_aggregates(commands):
     fields = re_agg.findall(commands)
     needed_fields = []
@@ -617,24 +620,45 @@ def print_mode(reqs, fields):
         print '\t'.join([str(r[k]) for k in fields])
 
 
+# compact ids for a dict, given a list of keys to use as the unique identifier
+# {'foo':bar,'a':'b'}, ('foo'), 6   -->  "b\315\267^O\371"  (first 6 bytes of md5('bar'))
+# HACK: the default byte_len of 6 (48 bits) should be fine for most applications. If you 
+# expect to process more than 10 to 15 million aggregate records (eg, grouping by url 
+# and user-agent over millions of logs) AND you need absolute accuracy, by all means
+# increase the byte_len default.
+def id_from_dict_keys(h, keys, byte_len=6):
+    return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
+
 
 ## how do we indicate sort direction?
 ## sort_cols = '100:1d,3a'
 ## sort_cols = (100, (1, DESC), (3 ASC))
 MAXINT = 1<<32
-def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0):
+def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
     table = {}
     cnt = 0
+    using_disk = False
+    if tmpfile:
+        import shelve
+        table = shelve.open(tmpfile,flag='n',writeback=True)
+        using_disk = True
 
     # each aggregate record will start as a list of values whose
     # default depends on the agg function. Also take the opportunity
     # here to build a formatting string for printing the final results.
     fmt        = ['%s'] * len(agg_fields)
     blank      = [0]    * (len(agg_fields)+1) # that +1 is for a count column
+    needed_post_fns = []
     for i,f in enumerate(agg_fields):
         op, field = f
         if op == 'min':
             blank[i+1] = MAXINT
+
+        elif op == 'var' or op == 'dev':
+            blank[i+1] = (0, 0)  # sum, squared sum
+            needed_post_fns.append((op, i+1))
+            fmt[i] = '%.2f'
+
         elif op == 'avg':
             fmt[i] = '%.2f'
     fmt = '\t'.join(fmt)
@@ -642,33 +666,51 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0):
     # the None function is for pass-through fields eg 'class' in 'class,max(msec)'
     agg_fns = {
         None:    (lambda i, r, field, table, key: r[field]),
-        'count': (lambda i, r, field, table, key: table[key][0]),
+        'count': (lambda i, r, field, table, key: table[key][0]), # just copied from col 0
         'avg':   (lambda i, r, field, table, key: ((table[key][i+1] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
         'sum':   (lambda i, r, field, table, key: table[key][i+1] + r[field]), 
         'min':   (lambda i, r, field, table, key: min(r[field], table[key][i+1])), 
         'max':   (lambda i, r, field, table, key: max(r[field], table[key][i+1])), 
-        }
+        'var':   (lambda i, r, field, table, key: (table[key][i+1][0]+r[field], table[key][i+1][1]+(r[field]**2))), 
+        'dev':   (lambda i, r, field, table, key: (table[key][i+1][0]+r[field], table[key][i+1][1]+(r[field]**2))), 
+    }
 
-    sort_buffer_length = limit * 12
+    # post-processing for more complex aggregates
+    # todo: arg signatures are not generic
+    post_fns = {
+        # squared sums - (sums squared / count) / count
+        'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
+        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)))
+    }
 
-    # todo: for more sophisticated things like variance, deviation, etc, should we wait until
-    # it's all done and rip through the records instead of re-calculating intermediates?
-    # what about functions that depend on other functions?
+    if limit:
+        sort_buffer_length = limit * 10
+        # fns to return the keys for sorting
+        if len(order_by) > 1:
+            key_fn =  (lambda v: [v[1][i] for i in order_by])
+            key_fn2 = (lambda v: [v[i]    for i in order_by])
+        else:
+            key_fn =  (lambda v: v[1][order_by[0]])
+            key_fn2 = (lambda v:    v[order_by[0]])
+
+
     running_list = {}
     for r in reqs:
         cnt += 1
-        if cnt % 5000 == 0: warn ('processed %d lines...' % cnt)
+        if cnt % 5000 == 0: 
+            warn ('processed %d lines...' % cnt)
+            if using_disk:
+                table.sync()
 
-        key = ','.join([str(r[k]) for k in group_by])
+        # HACK: to save RAM, key is the first 6 bytes of the md5 digest of the values of the 
+        # group_by fields. This **should** give collision **resistance** for < 10^7 keys.
+        key = id_from_dict_keys(r, group_by)
         if not table.has_key(key):
             table[key] = copy(blank)
 
         table[key][0] += 1 # record count 
-        
-        for i,f in enumerate(agg_fields):
-            op, field = f
-            table[key][i+1] = agg_fns[op](i, r, field, table, key)
-
+        for idx,(op,field) in enumerate(agg_fields):
+            table[key][idx+1] = agg_fns[op](idx, r, field, table, key)
 
         # the agg function collects sort_buffer_length records in a temporary dict,
         # sorts them, removes all but the top N and repeats. This is how we get top
@@ -676,11 +718,17 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0):
         if limit:
             running_list[key] = table[key]
             if cnt % sort_buffer_length:
-                running_list = dict(sorted(running_list.iteritems(), key=lambda (k,v): v[order_by], reverse=True)[0:limit])
+                running_list = dict(sorted(running_list.iteritems(), key=key_fn, reverse=descending)[0:limit])
     
-    rows = table.values()
     if limit:
-        rows = sorted(running_list.values(), key=lambda v: v[order_by], reverse=True)[0:limit]
+        rows = sorted(running_list.values(), key=key_fn2, reverse=descending)[0:limit]
+    else:
+        rows = table.values()
+
+    if needed_post_fns:
+        for i in xrange(len(rows)):
+            for (fn, col_idx) in needed_post_fns:
+                rows[i][col_idx] = post_fns[fn](rows[i][col_idx][0], rows[i][col_idx][1], rows[i][0])
 
     for row in rows:
         print fmt % tuple(row[1:])

@@ -4,34 +4,34 @@ cmd_options = """
 A handy tool for sophisticated, ad-hoc analysis of webserver logs.
 
 Useage:
-logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS] 
-        [-f FILTERS] [-l LAST_N] [-H | -R] [-c CFG_FILE] [LOG_FILE]
+logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
+        [--output FIELDS] [--filters FILTERS] [--last LAST_N] 
+        [--sort LIM:FIELDS:DIRECTION] [--config CFG_FILE] [--quiet] 
+        [LOG_FILE]
 
    -m MODE           There are three modes:
-                       - "grep" parses an entire log file (default).
+   --mode              - "grep" parses an entire log file (default).
                        - "tail" reads from the end of the file.
                        - "top"  shows aggregate performance stats.
 
    -H, -R            Shorthand for a useful but incomplete filter of 
-                     robot user-agents. -H means humans only, -R means
-                     robots only. Equivalent to -f 'bot=0' or 'bot=1'.
-                     Also see the bot and botname fields below.
+   --humans-only     robot user-agents. Equivalent to --filter 'bot=0'
+   --robots-only     or --filter 'bot=1'
 
 
-   -i, -e CLASSES    filter by or exclude the given "classes". You can
-                     configure logrep to classify requests by a set of 
-                     regular expressions. By default it uses the root 
-                     directory. -i and -e are mutually exclusive. See 
-                     the installation docs and /etc/wtop.cfg for how 
-                     to configure your own classes.
+   -i, -e CLASSES    Include or exclude the given URL "classes". You can
+   --include         configure logrep to classify URLs by a set of 
+   --exclude         regular expressions. See the installation docs and
+                     /etc/wtop.cfg for how to configure your own classes.
+                     --include and --exclude are mutually exclusive. 
 
                      Examples: 
-                        -i "home,search,wiki"
-                        -e "img,xml,js"
+                        --include "home,search,wiki"
+                        --exclude "img,xml,js"
 
 
    -f FILTERS        -f filters act on named fields.
-                     There is support for strings & numbers, greater 
+   --filter          There is support for strings & numbers, greater 
                      than (>), less than (<), equals (=), not-equals 
                      (!=), and regular expression match (~ and !~).
 
@@ -51,11 +51,7 @@ logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS]
                         ua         User-agent header
                         uas        First 30 characters of ua
                         ts         Unix timestamp of the request
-                        year
-                        month
-                        day
-                        hour
-                        minute
+                        year, month, day, hour, minute
                         class      The URL 'class'
                         status     HTTP status code, eg 200, 301, 404
                         proto      Protocol version, eg 'HTTP/1.1'
@@ -67,9 +63,9 @@ logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS]
 
 
    -o FIELDS         Output only the given fields, tab-delimited.
-                      
+   --output                   
                      Example:
-                        $ logrep -o 'cc,msec,url'
+                     $ logrep -o 'cc,msec,url'
                         UK      34      /Madonna.jpg
                         CA      34      /Padma-Lakshmi.jpg
                         UK      34      /Shaun-Woo.jpg
@@ -78,54 +74,64 @@ logrep  [-m MODE] [-q] [-i URL_CLASSES | -e URL_CLASSES] [-o FIELDS]
 
                      AGGREGATE FUNCTIONS:
                      In -m grep mode you can use aggregate functions
-                     on numeric columns such as bytes and msec. Any
+                     on numeric fields such as bytes and msec. Any
                      non-aggregate fields in the list will be used to
                      group the records together.
                         avg(FIELD)
                         min(FIELD)
                         max(FIELD)
                         count(*)
-                        sum(FIELD)
+                        sum(FIELD)   
+                        var(FIELD)   population variance
+                        dev(FIELD)   std deviation (sqrt of variance)
 
                      Example (grouped by status):
-                        $ logrep -o 'status,count(*),avg(msec)'
+                     $ logrep -o 'status,count(*),avg(msec)'
                         200	4196	242.58
                         302	5	79.75
                         404	1	9.00
                         304	798	15.76
 
-   -s LIMIT:FIELD    (Experimental)
-                     Use this option to get the top N records by some 
-                     field in the -o argument. It must
-                     be in the form LIMIT or LIMIT:FIELD, where LIMIT 
-                     is the number of records to return and FIELD is the 
-                     column number in the -o option, starting with 1. By
-                     default records are ordered by count(*) descending.
+   -s LIM:FIELDS:DIRECTION
+   --sort            Use this option to get the top N aggregate records 
+                     ordered by fields in --output. LIMIT is the number
+                     of records to return, FIELDS is a comma-delimited 
+                     list of column positions starting with 1, and 
+                     DIRECTION is either 'descending' (default) or
+                     'ascending'.
 
-                     Example (the slowest urls on average):
-                        $ logrep -o 'url,avg(msec)' -s '3:2'
-                        /home	280.54
-                        /wiki	191.09
-                        /about	178.91
+                     Example (total bytes sent ordered by hour & minute)
+                     $ logrep -o 'hour,minute,sum(bytes)' -s'3600:1,2:a'
+                        12	0	1895927
+                        12	1	7418972
+                        12	2	2103828
+                        12	3	7419371
+                        12	4	1680468
+                        ...
 
-                     (No, there is not yet asc/desc sort or multiple
-                     column sort. There are surprising performance
-                     problems with those features. Coming soon.)
+                     Example (the 3 most popular URLs):
+                     $ logrep -o 'url,count(*)' -s '3:1'
+                        /home    23718
+                        /wiki    8211
+                        /about   2703
 
 
    -l LAST_N         (grep mode only) Scan the last N log lines.
+   --last
 
 
    -c CFG_FILE       Feed logrep a custom config file. By default it 
-                     will use /etc/wtop.cfg
+   --config          will use /etc/wtop.cfg
 
 
-   -q                Quiet mode. Does not print messages to stderr.
+   -q, --quiet       Quiet mode. Does not print warnings to stderr.
 
+   -x-tmp-dir DIR    Tell logrep to use the specified directory for
+   (EXPERIMENTAL)    temporary files. If you have run out of memory 
+                     trying to execute a logrep query, try this option.
 
-   LOG_FILE          Optionally give the path to a log file. By default
-                     logrep will read from the file path specified in
-                     /etc/wtop.cfg
+   LOG_FILE          The path to a log file. By default logrep will
+                     read from the file path specified in /etc/wtop.cfg
 
  GEOCODING:
     logrep will use the MaxMind GeoIP library if it is installed. This
@@ -158,8 +164,11 @@ import logrep
 
 def runit():
     from sets import Set
-    import getopt, sys, os.path
-    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:")
+    import getopt, sys, os.path, random
+    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
+            'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
+            'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
+            'x-tmp-dir='))
  
     last_n                   = None
     include_classes          = []
@@ -174,7 +183,9 @@ def runit():
     has_agg                  = False
     group_by                 = []
     order_by                 = None     # experimental
+    order_descending         = True
     agg_limit                = 0
+    x_tmp_file               = None
 
     MODE                     = 'grep'
     cfg                      = '/etc/wtop.cfg'
@@ -183,24 +194,46 @@ def runit():
     grep_filters             = []     # deprecated
         
     for o,v in opts:
-        if o == '-h' or o == '-?': print cmd_options; sys.exit(0)
-        if o == '-m': MODE = v
-        if o == '-i': include_classes = Set(v.split(','))
-        if o == '-e': exclude_classes = Set(v.split(','))
-        if o == '-o': output_fields, agg_fields, group_by, has_agg = logrep.compile_aggregates(v)
-        if o == '-H': uncompiled_field_filters.append('bot=0')
-        if o == '-R': uncompiled_field_filters.append('bot=1')
-        if o == '-l': last_n = int(v)
-        if o == '-f': uncompiled_field_filters.append(v)
-        if o == '-d': logrep.LOG_LEVEL = 2
-        if o == '-q': logrep.LOG_LEVEL = 0
-        if o == '-s': agg_limit, order_by = logrep.compile_orderby(v)
-        if o == '-g': grep_filters.append(v)      # deprecated
-        if o == '-v': grep_excludes.append(v)     # deprecated
-        if o == '-c': 
+        if o in ('-h', '-?', '--help'):
+            print cmd_options; sys.exit(0)
+        if o in ('-m', '--mode'): 
+            MODE = v
+        if o in ('-i', '--include'):
+            include_classes = Set(v.split(','))
+        if o in ('-e', '--exclude'):
+            exclude_classes = Set(v.split(','))
+        if o in ('-o', '--output'):
+            output_fields, agg_fields, group_by, has_agg = logrep.compile_aggregates(v)
+        if o in ('-H', '--humans-only'):
+            uncompiled_field_filters.append('bot=0')
+        if o in ('-R', '--robots-only'):
+            uncompiled_field_filters.append('bot=1')
+        if o in ('-l', '--last'):
+            last_n = int(v)
+        if o in ('--x-tmp-dir'):
+            if not os.path.exists(v) or not(os.path.isdir(v)):
+                raise Exception("'%s' is not a directory" % v)
+            try:
+                x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
+            except (OSError, IOError), (errno, strerror):
+                raise Exception("Could not create temp file in '%s': %s" % (v, strerror))
+                
+        if o in ('-f', '--filter'):
+            uncompiled_field_filters.append(v)
+        if o in ('-d'):
+            logrep.LOG_LEVEL = 2
+        if o in ('-q', '--quiet'):
+            logrep.LOG_LEVEL = 0
+        if o in ('-s', '--sort'):
+            agg_limit, order_by, order_descending = logrep.compile_orderby(v)
+        if o in ('-g'):
+            grep_filters.append(v)      # deprecated
+        if o in ('-v'):
+            grep_excludes.append(v)     # deprecated
+        if o in ('-c', '--config'):
             if v:
                 if not os.path.exists(v):
-                    raise Exception("bad config file: '%s'" % v)
+                    raise Exception("can't read config file: '%s'" % v)
                 cfg = v
                 
     ## check all the config options are sane, etc.
@@ -223,6 +256,9 @@ def runit():
 
     if has_agg and not group_by:
         logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
+
+    if (not has_agg) and agg_limit > 0:
+        logrep.warn('warn: --sort is ignored if there are no aggregate functions in -o')
 
     if last_n and MODE != 'grep':
         logrep.warn("warn: -l LAST_N is only relevant in grep mode")
@@ -259,7 +295,10 @@ def runit():
 
     # recompile the log format regexp given the relevant fields. 
     # This can yield a big performance boost.
-    relevant_fields = logrep.field_dependencies(output_fields + filtered_fields)
+    minimum_fields = []    
+    if include_classes or exclude_classes:
+        minimum_fields = ['class']
+    relevant_fields = logrep.field_dependencies(output_fields + filtered_fields + minimum_fields)
     LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
 
     # parse the raw log lines into records & do any needed massage and derivation
@@ -283,7 +322,7 @@ def runit():
 
         else:
             if has_agg:
-                logrep.agg_mode(reqs, agg_fields, group_by, order_by, agg_limit)
+                logrep.agg_mode(reqs, agg_fields, group_by, order_by, agg_limit, order_descending, x_tmp_file)
             else:
                 logrep.print_mode(reqs, output_fields)
 
