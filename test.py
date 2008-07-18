@@ -7,13 +7,13 @@
 prefix = './logrep -c wtop.cfg'
 suffix = 'access.log | md5 -q'
 tests = (
-    "-o 'url,msec,bot'",
-    "-o 'url,msec,ts'",
-    "-o 'url,msec,class'",
-    "-o 'url,msec,bot,ts,class'",
-    "-f 'url!~/q/,msec>500' -o 'url,msec,bot,ts,class'",
-    "-f 'url!~/q/,msec<500' -o 'url,msec,bot,ts,class,bytes'",
-    "-f 'url!~/q/,msec<500,bot=1' -o 'url,msec,bot,ts,class,bytes'",
+    ("-o", 'url,msec,bot'),
+    "-o", 'url,msec,ts'),
+    "-o", 'url,msec,class'",
+    "-o", 'url,msec,bot,ts,class'",
+    "-f", 'url!~/q/,msec>500' -o 'url,msec,bot,ts,class'",
+    "-f", 'url!~/q/,msec<500' -o 'url,msec,bot,ts,class,bytes'",
+    ("-f", 'url!~/q/,msec<500,bot=1', '-o', 'url,msec,bot,ts,class,bytes'),
 )
 
 

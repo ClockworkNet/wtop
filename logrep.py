@@ -698,16 +698,17 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
         cnt += 1
         if cnt % 5000 == 0: 
             warn ('processed %d lines...' % cnt)
-            if using_disk:
-                table.sync()
+        if using_disk and cnt % 100000 == 0:
+            warn ('sync()ing tmpfile to disk...')
+            table.sync()
 
-        # HACK: to save RAM, key is the first 6 bytes of the md5 digest of the values of the 
-        # group_by fields. This **should** give collision **resistance** for < 10^7 keys.
+        # HACK: to save RAM, key is the first 6 bytes of the md5 of the group_by 
+        # fields. This should give collision *resistance* for up to 10^7 keys.
         key = id_from_dict_keys(r, group_by)
         if not table.has_key(key):
             table[key] = copy(blank)
 
-        table[key][0] += 1 # always keep record count regardless of what the use asked for
+        table[key][0] += 1 # always keep record count regardless of what the user asked for
         for idx,(op,field) in enumerate(agg_fields):
             table[key][idx+1] = agg_fns[op](idx, r, field, table, key)
 
@@ -737,8 +738,6 @@ def agg_mode(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True
     if tmpfile:
         table.close()
         # hack: shelve module has no way to delete, and does not tell you it adds '.db'
-        # I want this to scream if it fails because I want to know if I'm not deleting
-        # potentially hugemongous files.
         os.remove(tmpfile + '.db') 
 
 ## experimental RRDtool mode for generating timeseries graphs
