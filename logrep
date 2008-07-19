@@ -343,8 +343,8 @@ def runit():
             None:    (lambda a,b: a),
             'count': (lambda a,b: a+b),
             'sum':   (lambda a,b: a+b),
-            'min':   (lambda a,b: min(a,b), 
-            'max':   (lambda a,b: max(a,b),
+            'min':   (lambda a,b: min(a,b)), 
+            'max':   (lambda a,b: max(a,b)),
             'avg':   (lambda a,b: (a+b)/2.0),  # heh.
             'var':   (lambda a,b: a),
             'dev':   (lambda a,b: a),
@@ -354,10 +354,10 @@ def runit():
         fmt = None
         for o in outputs:
             s = shelve.open(o)
-            for k,v in s['records']:
+            for k,v in s['records'].iteritems():
                 if records.has_key(k):
-                    for idx,col in enumerate(v):
-                        records[k][idx] = 
+                    for idx,(op,field) in enumerate(agg_fields):
+                        records[k][idx+1] = merge_fns[op](records[k][idx+1], v[idx+1])
                 else:
                     records[k] = v
             fmt = s['fmt']
