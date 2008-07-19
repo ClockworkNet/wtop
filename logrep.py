@@ -266,8 +266,8 @@ def field_map(lines, relevant_fields):
 def field_dependencies(requested_fields):
     deps = Set(requested_fields)
     deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
-    deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
-    return deps
+    deps = flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns)))
+    return Set(deps + requested_fields)
 
 
 # This, believe it or not, is the work function. It takes in raw log

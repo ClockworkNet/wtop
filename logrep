@@ -231,23 +231,23 @@ def runit():
                 cfg = v
 
         # experimental
-        if o in ('--x-cores'):
+        if o == '--x-cores':
             x_cores = min(int(v), 8)
-        if o in ('--x-thread-id'):
+        if o == '--x-thread-id':
             x_thread_id = int(v)
-        if o in ('--x-thread-output'):
+        if o == '--x-thread-output':
             x_thread_output = v
 
 
 
-        if o in ('--x-tmp-dir'):
+        if o == '--x-tmp-dir':
             if not os.path.exists(v) or not(os.path.isdir(v)):
                 raise Exception("'%s' is not a directory" % v)
             x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
         
         # deprecated
-        if o in ('-g'): grep_filters.append(v)
-        if o in ('-v'): grep_excludes.append(v)
+        if o == '-g': grep_filters.append(v)
+        if o == '-v': grep_excludes.append(v)
 
 
     ## check all the config options are sane, etc.
