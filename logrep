@@ -164,7 +164,7 @@ import logrep
 
 def runit():
     from sets import Set
-    import getopt, sys, os.path, random, shelve
+    import getopt, sys, os.path, random
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
@@ -196,7 +196,7 @@ def runit():
 
     grep_excludes            = []     # deprecated
     grep_filters             = []     # deprecated
-        
+
     for o,v in opts:
         if o in ('-h', '-?', '--help'):
             print cmd_options; sys.exit(0)
@@ -263,10 +263,13 @@ def runit():
         field_filter_fn, filtered_fields = logrep.compile_filter(','.join(uncompiled_field_filters))
 
     if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
-        raise Exception("error: can't load geoip library, yet you asked for cc or country fields.")
+        raise Exception("can't load geoip library, yet you asked for cc or country fields.")
 
     if has_agg and MODE != 'grep':
-        raise Exception("error: aggregate functions are only allowed in -m grep mode")
+        raise Exception("aggregate functions are only allowed in -m grep mode")
+
+    if x_cores and not has_agg:
+        raise Exception("right now, --x-cores only works when you have aggregate functions in -o")
 
     if has_agg and not group_by:
         logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
@@ -308,7 +311,7 @@ def runit():
 
 
     # multicore flag! This means we massage the arguments a bit, then popen() child processes
-    # to do the actual work.
+    # to do the actual work. 
     if x_cores and not x_thread_id:
         from subprocess import Popen, PIPE
         child_argv = sys.argv
@@ -324,50 +327,12 @@ def runit():
             extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i],  '-']
             children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=PIPE, stderr=sys.stderr, close_fds=True))
 
-        go = True
-        while go:
-            for c in children:
-                try:
-                    line = log.next()
-                except:
-                    go = False
-                    break
-                c.stdin.write(line)
+        if has_agg:
+            multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit)
 
-        # now tell them they've been good and put them to bed.
-        for c in children:
-            c.stdin.close()
-            c.wait()
-
-        merge_fns = {
-            None:    (lambda a,b: a),
-            'count': (lambda a,b: a+b),
-            'sum':   (lambda a,b: a+b),
-            'min':   (lambda a,b: min(a,b)), 
-            'max':   (lambda a,b: max(a,b)),
-            'avg':   (lambda a,b: (a+b)/2.0),  # heh.
-            'var':   (lambda a,b: a),
-            'dev':   (lambda a,b: a),
-        }
-
-        records = {}
-        fmt = None
-        for o in outputs:
-            s = shelve.open(o)
-            for k,v in s['records'].iteritems():
-                if records.has_key(k):
-                    for idx,(op,field) in enumerate(agg_fields):
-                        records[k][idx+1] = merge_fns[op](records[k][idx+1], v[idx+1])
-                else:
-                    records[k] = v
-            fmt = s['fmt']
-            s.close()
-
-        sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
-        rows = sort_fn(records)
-        for r in rows:
-            print fmt % tuple(r[1:])
-
+        # there should be an "else:" here, but there is an interesting problem 
+        # with using multiple processes on a straight grep: the lines may 
+        # arrive out of order.
         sys.exit(0)
 
 
@@ -432,7 +397,53 @@ def runit():
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
-        
+
+import shelve
+def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit):
+    go = True
+    while go:
+        for c in children:
+            try:
+                line = log.next()
+            except:
+                go = False
+                break
+            c.stdin.write(line)
+
+    # now tell them they've been good and put them to bed.
+    for c in children:
+        c.stdin.close()
+        c.wait()
+
+    merge_fns = {
+            None:    (lambda a,b: a),
+            'count': (lambda a,b: a+b),
+            'sum':   (lambda a,b: a+b),
+            'min':   (lambda a,b: min(a,b)), 
+            'max':   (lambda a,b: max(a,b)),
+            'avg':   (lambda a,b: (a+b)/2.0),  # heh.
+            'var':   (lambda a,b: a),
+            'dev':   (lambda a,b: a)}
+
+    records = {}
+    fmt = None
+    for o in outputs:
+        s = shelve.open(o)
+        for k,v in s['records'].iteritems():
+            if records.has_key(k):
+                for idx,(op,field) in enumerate(agg_fields):
+                    records[k][idx+1] = merge_fns[op](records[k][idx+1], v[idx+1])
+            else:
+                records[k] = v
+            fmt = s['fmt']
+        s.close()
+
+    sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
+    rows = sort_fn(records)
+    for r in rows:
+        print fmt % tuple(r[1:])
+
+
 
 if __name__ == '__main__':
 #    import cProfile; cProfile.run('runit()')
