@@ -160,6 +160,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 import logrep
 
+import cPickle
 
 
 def runit():
@@ -200,54 +201,54 @@ def runit():
     for o,v in opts:
         if o in ('-h', '-?', '--help'):
             print cmd_options; sys.exit(0)
-        if o in ('-m', '--mode'): 
+        elif o in ('-m', '--mode'): 
             MODE = v
-        if o in ('-i', '--include'):
+        elif o in ('-i', '--include'):
             include_classes = Set(v.split(','))
-        if o in ('-e', '--exclude'):
+        elif o in ('-e', '--exclude'):
             exclude_classes = Set(v.split(','))
-        if o in ('-o', '--output'):
+        elif o in ('-o', '--output'):
             output_fields, agg_fields, group_by, has_agg = logrep.compile_aggregates(v)
-        if o in ('-H', '--humans-only'):
+        elif o in ('-H', '--humans-only'):
             uncompiled_field_filters.append('bot=0')
-        if o in ('-R', '--robots-only'):
+        elif o in ('-R', '--robots-only'):
             uncompiled_field_filters.append('bot=1')
-        if o in ('-l', '--last'):
+        elif o in ('-l', '--last'):
             last_n = int(v)
 
                 
-        if o in ('-f', '--filter'):
+        elif o in ('-f', '--filter'):
             uncompiled_field_filters.append(v)
-        if o in ('-d'):
+        elif o in ('-d'):
             logrep.LOG_LEVEL = 2
-        if o in ('-q', '--quiet'):
+        elif o in ('-q', '--quiet'):
             logrep.LOG_LEVEL = 0
-        if o in ('-s', '--sort'):
+        elif o in ('-s', '--sort'):
             agg_limit, order_by, order_descending = logrep.compile_orderby(v)
-        if o in ('-c', '--config'):
+        elif o in ('-c', '--config'):
             if v:
                 if not os.path.exists(v):
                     raise Exception("can't read config file: '%s'" % v)
                 cfg = v
 
         # experimental
-        if o == '--x-cores':
-            x_cores = min(int(v), 8)
-        if o == '--x-thread-id':
+        elif o == '--x-cores':
+            x_cores = min(int(v), 32)
+        elif o == '--x-thread-id':
             x_thread_id = int(v)
-        if o == '--x-thread-output':
+        elif o == '--x-thread-output':
             x_thread_output = v
 
 
 
-        if o == '--x-tmp-dir':
+        elif o == '--x-tmp-dir':
             if not os.path.exists(v) or not(os.path.isdir(v)):
                 raise Exception("'%s' is not a directory" % v)
             x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
         
         # deprecated
-        if o == '-g': grep_filters.append(v)
-        if o == '-v': grep_excludes.append(v)
+        elif o == '-g': grep_filters.append(v)
+        elif o == '-v': grep_excludes.append(v)
 
 
     ## check all the config options are sane, etc.
@@ -281,6 +282,7 @@ def runit():
         logrep.warn("warn: -l LAST_N is only relevant in grep mode")
 
 
+
     # open the log(s) as a generator that yields raw lines
     log = None
     if MODE in ('top', 'tail', 'rrd'):
@@ -310,8 +312,8 @@ def runit():
                 log = logrep.gen_cat(logrep.gen_open(logfiles))
 
 
-    # multicore flag! This means we massage the arguments a bit, then popen() child processes
-    # to do the actual work. 
+    # multicore flag! This means we massage the arguments a bit, 
+    # then popen() child processes to do the actual work. 
     if x_cores and not x_thread_id:
         from subprocess import Popen, PIPE
         child_argv = sys.argv
@@ -319,20 +321,24 @@ def runit():
         # if there is an explicit log file in the args, kill it for children.
         if args: del child_argv[-1]
 
+        # multiply the limit clause by number of threads to prevent 
+        # rounding errors at the tail of the list. 
+        d = {True: 'desc', False: 'asc'}
+        lim_string = "%d:%s:%s" % (agg_limit * x_cores, ','.join(map(str, order_by)), d[order_descending])
+
         children = []
         outputs = []
         for i in range(x_cores):
             logrep.warn('starting thread %d' % (i+1))
             outputs.append('/tmp/logrep-thread-%d.tmp'%(i+1)) # todo... bad.
-            extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i],  '-']
-            children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=PIPE, stderr=sys.stderr, close_fds=True))
+            extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i], '--sort', lim_string, '-']
+            children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=sys.stdout, stderr=sys.stderr, close_fds=True))
 
         if has_agg:
             multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit)
-
         # there should be an "else:" here, but there is an interesting problem 
-        # with using multiple processes on a straight grep: the lines may 
-        # arrive out of order.
+        # with using multiple processes for grep: the lines arrive out of order.
+
         sys.exit(0)
 
 
@@ -373,10 +379,10 @@ def runit():
 
                 # if I'm a child thread, save output to file instead.
                 if x_thread_output:
-                    s = shelve.open(x_thread_output)
-                    s.update({'records':records, 'fmt':fmt})
-                    s.sync()
-                    s.close()
+                    o = open(x_thread_output, 'wb')
+                    cPickle.dump(dict(records=records, fmt=fmt), o)
+                    o.close()
+
 
                 # sort, prune & print it all out.
                 else:
@@ -398,7 +404,6 @@ def runit():
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
 
-import shelve
 def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit):
     go = True
     while go:
@@ -421,14 +426,16 @@ def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, orde
             'sum':   (lambda a,b: a+b),
             'min':   (lambda a,b: min(a,b)), 
             'max':   (lambda a,b: max(a,b)),
-            'avg':   (lambda a,b: (a+b)/2.0),  # heh.
-            'var':   (lambda a,b: a),
-            'dev':   (lambda a,b: a)}
+            'avg':   (lambda a,b: (a+b)/2.0),  # hack: do you really think you can get away with this?
+            'var':   (lambda a,b: (a+b)/2.0),
+            'dev':   (lambda a,b: (a+b)/2.0)}
 
     records = {}
     fmt = None
     for o in outputs:
-        s = shelve.open(o)
+        f = open(o, 'r')
+        s = cPickle.load(f)
+        f.close()
         for k,v in s['records'].iteritems():
             if records.has_key(k):
                 for idx,(op,field) in enumerate(agg_fields):
@@ -436,7 +443,6 @@ def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, orde
             else:
                 records[k] = v
             fmt = s['fmt']
-        s.close()
 
     sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
     rows = sort_fn(records)

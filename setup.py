@@ -10,5 +10,8 @@ setup(
 
     url="http://code.google.com/p/wtop/",
     author="Carlos Bueno",
-    author_email="carlos@bueno.org"
+    author_email="carlos@bueno.org",
+
+    license='New BSD',
+    description='running statistics for webservers, plus powerful log-grepping tools'
 )

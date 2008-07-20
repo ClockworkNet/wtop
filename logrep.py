@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import os, math, fnmatch, re, time, calendar, string, socket, sys, md5
+import os, math, fnmatch, re, time, calendar, string, socket, sys, md5, random, ConfigParser
 from copy import copy
 from sets import Set
 geocoder = None
@@ -17,44 +17,25 @@ DISC_SYNC_CNT = 100000        # number of records to hold in memory before flush
 SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
 PROGRESS_INTERVAL = 20000     # ie warn('processed X lines...')
 
+# randomize the disc sync and sort_buffer len to reduce the 
+# chance of thrashing the disks in mutlicore mode.
+DISC_SYNC_CNT += (DISC_SYNC_CNT * 0.08 * random.random())
+SORT_BUFFER_LENGTH += (SORT_BUFFER_LENGTH * 0.08 * random.random())
+
+
 def warn(s):
     if LOG_LEVEL < 1: return
     sys.stderr.write(s+'\n')
 
 
-
-import ConfigParser
-
-
 # change these defaults in your wtop.cfg file
-LOG_ROOT = '/var/log/apache2/'
-LOG_FILE = 'access_log'
-LOG_FORMAT='%h %l %u %t "%r" %>s %B "%{Referer}i" "%{User-Agent}i" %D'
-DEFAULT_OUTPUT_FIELDS = 'ts,class,ipcnt,ip,msec,uas,url'.split(',')
-MAX_REQUEST_TIME = 5000
-MIN_RPS = 0.2   
-generic = r'^/([^/\?]+)' 
-robots = r'yacy.net|nutch|MSRBOT|translate.google.com|Feedster|Nutch|Gaisbot|Snapbot|VisBot|libwww|CazoodleBot|polybot|VadixBot|Sogou|SBider|BecomeBot|Yandex|Pagebull|chudo|Pockey|nicebot|entireweb|FeedwhipBOT|ConveraCrawler|NG/2.0|WebImages|Factbot|information-online|gsa-crawler|Jyxobot|SentinelCrawler|BlogPulseLive|YahooFeedSeeker|GurujiBot|wwwster|Y\!J-SRD|Findexa|SurveyBot|yetibot|discoveryengine|fastsearch|noxtrum|Googlebot|Snapbot|OGSearchSpider|heritrix|nutch-agent|Slurp|msnbot|cuill|Mediapartners|YahooSeeker|GrabPERF|keywen|ia_archiver|crawler.archive.org|Baiduspider|larbin|shopwiki'
-
-classes = (
-    ('home', r'^/(?:\?.*)?$'),
-    ('xml',  r'\.xml(?:\?.*)?$'),
-    ('js',   r'\.js(?:\?.*)?$'),
-    ('css',  r'\.css(?:\?.*)?$'),
-    ('swf',  r'\.swf(?:\?.*)?$'),
-    ('img',  r'\.(?:png|gif|jpe?g|cur|ico|bmp)(?:\?.*)?$')
-)
-
-re_robots = None
-re_generic = None
-re_classes = None
-
+LOG_ROOT = LOG_FILE = LOG_FORMAT = DEFAULT_OUTPUT_FIELDS = MAX_REQUEST_TIME = MIN_RPS = re_robots =re_generic = re_classes = None
 config = {}
 
 
 # yes, this is ugly.
 def configure(cfg='/etc/wtop.cfg'):
-    global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MIN_RPS,generic,robots,classes,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
+    global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
 
     config = ConfigParser.ConfigParser()
     config.read(cfg)
@@ -65,13 +46,11 @@ def configure(cfg='/etc/wtop.cfg'):
     DEFAULT_OUTPUT_FIELDS = config.get('main', 'default_output_fields').split(',')
     MAX_REQUEST_TIME = int(config.get('wtop', 'max_request_time'))
     MIN_RPS = float(config.get('wtop', 'min_rps'))   
-    generic = config.get('patterns', 'generic')   
-    robots = config.get('patterns', 'robots')
     classes = [(o, config.get('classes', o)) for o in config.options('classes')]
 
     ## compile a godawful bunch of regexps
-    re_robots = re.compile(robots)
-    re_generic = re.compile(generic)
+    re_robots = re.compile(config.get('patterns', 'robots'))
+    re_generic = re.compile(config.get('patterns', 'generic'))
     re_classes = [(x[0], re.compile(x[1])) for x in classes]
 
     # these may be overridden later by the logrep command line program because it
@@ -629,7 +608,8 @@ def print_mode(reqs, fields):
 # and user-agent over millions of logs) AND you need absolute accuracy, by all means
 # increase the byte_len default.
 def id_from_dict_keys(h, keys, byte_len=6):
-    return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
+    #return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
+    return md5.md5(','.join([str(h[k]) for k in keys])).hexdigest()
 
 
 def keyfns(order_by):
