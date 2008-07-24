@@ -15,7 +15,7 @@ except:
 LOG_LEVEL = 1  # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000        # number of records to hold in memory before flushing to disk
 SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
-PROGRESS_INTERVAL = 20000     # ie warn('processed X lines...')
+PROGRESS_INTERVAL = 2000     # ie warn('processed X lines...')
 
 # randomize the disc sync and sort_buffer len to reduce the 
 # chance of thrashing the disks in mutlicore mode.
@@ -121,6 +121,7 @@ def format2regexp(fmt, relevant_fields=()):
             colnames.append(field)
         else:
             atom = skip_pattern
+
 
         if k.find('{') > -1:
             p = re.compile('%[\>\<\!,\d]*'+k.replace('}', '.').replace('{', '.'), re.I)
@@ -230,7 +231,7 @@ def field_map(lines, relevant_fields):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
     for line in lines:
-        for source_col, new_cols, fn in relevant_col_fns:
+        for source_col, new_cols, fn in relevant_col_fns:            
             vals = fn(line[source_col])
             if len(new_cols) == 1:    # todo: ugly & slow
                 line[new_cols[0]] = vals
@@ -678,9 +679,15 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
         running_list = {}
         key_fn, key_fn2 = keyfns(order_by)
 
+
+    lastt = time.time()
+
     for r in reqs:
         cnt += 1
-        if cnt % PROGRESS_INTERVAL == 0: warn ('processed %d lines...' % cnt)
+        if cnt % PROGRESS_INTERVAL == 0: 
+            t = time.time() - lastt
+            lastt = time.time()
+            warn ('%0.2f processed %d records...' % (t, cnt))
 
         # HACK: to save RAM, key is the first 6 bytes of the md5 of the group_by 
         # fields. This should give collision *resistance* for up to 10^7 keys.

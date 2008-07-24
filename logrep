@@ -160,7 +160,8 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 import logrep
 
-import cPickle
+import cPickle, tempfile
+from subprocess import Popen, PIPE, call
 
 
 def runit():
@@ -303,8 +304,10 @@ def runit():
             log = sys.stdin
 
         else: # explicit file.
-            logfiles = [args[0]] #logfiles = logs_for_date(args[0])
-
+           # logfiles = [args[0]] #logfiles = logs_for_date(args[0])
+            log = open(args[0], 'r')
+           # log = mmap_file(args[0])
+            
         if not log:
             if last_n:
                 log = logrep.tail_n(logfiles[-1], last_n)
@@ -312,15 +315,18 @@ def runit():
                 log = logrep.gen_cat(logrep.gen_open(logfiles))
 
 
+    # various raw log line filters. deprecated.
+    for e in grep_excludes: log = logrep.line_exclude(log, e)
+    for f in grep_filters:  log = logrep.line_filter(log, f)
+
     # multicore flag! This means we massage the arguments a bit, 
     # then popen() child processes to do the actual work. 
     if x_cores and not x_thread_id:
-        from subprocess import Popen, PIPE
         child_argv = sys.argv
 
         # if there is an explicit log file in the args, kill it for children.
         if args: del child_argv[-1]
-
+        
         # multiply the limit clause by number of threads to prevent 
         # rounding errors at the tail of the list. 
         d = {True: 'desc', False: 'asc'}
@@ -330,7 +336,7 @@ def runit():
         outputs = []
         for i in range(x_cores):
             logrep.warn('starting thread %d' % (i+1))
-            outputs.append('/tmp/logrep-thread-%d.tmp'%(i+1)) # todo... bad.
+            outputs.append(tempfile.mkstemp(prefix='logrep-thread-%d-'%(i+1))[1])
             extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i], '--sort', lim_string, '-']
             children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=sys.stdout, stderr=sys.stderr, close_fds=True))
 
@@ -342,10 +348,6 @@ def runit():
         sys.exit(0)
 
 
-    # various raw log line filters. deprecated.
-    for e in grep_excludes: log = logrep.line_exclude(log, e)
-    for f in grep_filters:  log = logrep.line_filter(log, f)
-
     # recompile the log format regexp given the relevant fields. 
     # This can yield a big performance boost.
     minimum_fields = []    
@@ -353,6 +355,7 @@ def runit():
         minimum_fields = ['class']
     relevant_fields = logrep.field_dependencies(output_fields + filtered_fields + minimum_fields)
     LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
+
 
     # parse the raw log lines into records & do any needed massage and derivation
     reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
@@ -375,14 +378,14 @@ def runit():
 
         else:
             if has_agg:
+                # todo: these arg signatures are fugly
                 records, fmt, tmpfile, table = logrep.calculate_aggregates(reqs, agg_fields, group_by, order_by, agg_limit, order_descending, x_tmp_file)
 
-                # if I'm a child thread, save output to file instead.
+                # if I'm a child thread, save output to a temp file.
                 if x_thread_output:
                     o = open(x_thread_output, 'wb')
                     cPickle.dump(dict(records=records, fmt=fmt), o)
                     o.close()
-
 
                 # sort, prune & print it all out.
                 else:
@@ -396,6 +399,7 @@ def runit():
                 if tmpfile:
                     table.close()
                     # hack: shelve module has no way to delete, and does not tell you it adds '.db'
+                    # on some systems, and .dir / .pag on other systems... it's a mess.
                     os.remove(tmpfile + '.db') 
 
             else:
@@ -404,16 +408,43 @@ def runit():
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
 
+
+import mmap, os.path
+def mmap_file(fname):
+    fileobj = open(fname)
+    filemap = mmap.mmap(
+        fileobj.fileno(),
+        os.path.getsize(fname),
+        access=mmap.ACCESS_READ
+    )
+    return filemap
+
+
+# http://effbot.org/zone/wide-finder.htmg
+def getchunks(f, size=1024*1024):
+    while 1:
+        start = f.tell()
+        f.seek(size, 1)
+        s = f.readline()
+        yield start, f.tell() - start
+        if not s:
+            break
+
+
 def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit):
+#    chunks = getchunks(log, 1024*16)
     go = True
     while go:
         for c in children:
             try:
-                line = log.next()
+#                 s,e = chunks.next()
+#                 log.seek(s)
+#                 c.stdin.write(log.read(e))
+
+                c.stdin.write(log.next())
             except:
                 go = False
                 break
-            c.stdin.write(line)
 
     # now tell them they've been good and put them to bed.
     for c in children:
