@@ -1,0 +1,30 @@
+./logrep -c wtop.cfg -o 'url,msec,bot' sample.log | md5 -q
+4c866e8d3bff76d7e5266e1e4e02699f
+
+./logrep -c wtop.cfg -o 'url,msec,ts' sample.log | md5 -q
+b63b75e33400bb5f2435e02f4c0ca8e2
+
+./logrep -c wtop.cfg -o 'url,msec,class' sample.log | md5 -q
+c306f585684809ef2eff70e94ebdbaf2
+
+./logrep -c wtop.cfg -o 'url,msec,bot,ts,class' sample.log | md5 -q
+17872e8e71e636723775e95332164beb
+
+./logrep -c wtop.cfg -f 'url!~/q/,msec>500' -o 'url,msec,bot,ts,class' sample.log | md5 -q
+bbb38443a395c7b7aca1c2a0fe1d450b
+
+./logrep -c wtop.cfg -f 'url!~/q/,msec<500' -o 'url,msec,bot,ts,class,bytes' sample.log | md5 -q
+012d6af9d66f11cfe34915cff8e894ca
+
+./logrep -c wtop.cfg -f 'url!~/q/,msec<500,bot=1' -o 'url,msec,bot,ts,class,bytes' sample.log | md5 -q
+40a327b00ce4d030cd4793aee850a9bb
+
+./logrep -c wtop.cfg -o 'url,avg(msec),count(msec),var(bytes),sum(bytes)' sample.log | md5 -q
+fea9941810350ba2b717765dbe5864da
+
+./logrep -c wtop.cfg -o 'url,avg(msec),count(msec),var(bytes),sum(bytes)' --sort '10:2,3:a' sample.log | md5 -q
+fa880dc473d0c2852bcf1ebd1e822513
+
+./logrep -c wtop.cfg -o 'url,avg(msec),count(msec),var(bytes),sum(bytes)' --sort '10:2,3:d' sample.log | md5 -q
+9b7a14cfcc71018c5233656074c7b635
+

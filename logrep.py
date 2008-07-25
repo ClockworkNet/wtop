@@ -15,7 +15,7 @@ except:
 LOG_LEVEL = 1  # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000        # number of records to hold in memory before flushing to disk
 SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
-PROGRESS_INTERVAL = 2000     # ie warn('processed X lines...')
+PROGRESS_INTERVAL = 20000     # ie warn('processed X lines...')
 
 # randomize the disc sync and sort_buffer len to reduce the 
 # chance of thrashing the disks in mutlicore mode.
@@ -49,7 +49,7 @@ def configure(cfg='/etc/wtop.cfg'):
     classes = [(o, config.get('classes', o)) for o in config.options('classes')]
 
     ## compile a godawful bunch of regexps
-    re_robots = re.compile(config.get('patterns', 'robots'))
+    re_robots = re.compile(config.get('patterns', 'robots'), re.I)
     re_generic = re.compile(config.get('patterns', 'generic'))
     re_classes = [(x[0], re.compile(x[1])) for x in classes]
 
@@ -81,7 +81,7 @@ LOG_DIRECTIVES = {
     'a' : ('ip',         restr, restr_skipped),
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
-    't' : ('ts',         r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
+    't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
     'r' : ('request',    r'(\S+ \S+ \S+)', r'\S+ \S+ \S+'),
     'm' : ('method',     restr, restr_skipped),
     'D' : ('msec',       restr, restr_skipped),
@@ -141,29 +141,28 @@ def format2regexp(fmt, relevant_fields=()):
 def safeint(s):
     return int(s.replace('-', '0'))
 
-
-# "10/Aug/2007:21:10:59 -0800" --> 1183900259
-# hack: This func is about 500% faster than the regex/strptime/timegm way. 
+### timestamp parsing
+# This method is about 500% faster than the regex/strptime/timegm way. 
 months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 
           'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
-apache_tr = string.maketrans('/:', '  ')
-def apache2unixtime(t):
-    try:
-        parts = t.translate(apache_tr).split(' ')
-        ofs = 0
-        if len(parts) == 7:
-            ofs = (int(parts[6]) * 3600)
-        year, month, day, hour, minute = (int(parts[2]), months[parts[1]], int(parts[0]), int(parts[3]), int(parts[4]))
-        return ((((((date_ordinal(year, month) - 1 + day)*24) + hour)*60 + minute)*60 + int(parts[5])) + ofs, year, month, day, hour, minute)
-    except:
-        warn("apache2unix failed on '%s'"%t)
+
+# "There are 40 time zones instead of 24 as popularly believed..."
+# http://en.wikipedia.org/wiki/List_of_time_zones
+tzs = {'-0800': 28800, '+1000': -36000, '+1245': -40500, '+0330': -9000, '-0100': 3600, '+0930': -30600, '+1100': -39600, '-0900': 32400, '+1130': -37800, '+0700': -25200, '-0330': 12600, '-0700': 25200, '+0600': -21600, '-0600': 21600, '+0845': -26100, '-0500': 18000, '+0530': -16200, '+0100': -3600, '-0400': 14400, '+0000': 0, '-0430': 16200, '-0930': 34200, '+0300': -10800, '+1400': -50400, '+1030': -34200, '+0200': -7200, '+0900': -32400, '+0630': -19800, '+0545': -15300, '-0300': 10800, '+0800': -28800, '-1000': 36000, '-0200': 7200, '+0430': -12600, '-1100': 39600, '+0500': -18000, '-1200': 43200, '+1200': -43200, '+0400': -14400, '+1300': -46800}
 
 # number of days from given year/month and 1 Jan 1970
-# hack: only accurate from 1970 to 2099 but is much faster than 
-# datetime.date(2008, 9, 1).toordinal().
+# hack: only accurate from 1970 to 2099
 month_len = (0,31,59,90,120,151,181,212,243,273,304,334)
 def date_ordinal(y, m):
-    return ((y - 1970) * 365) + (y / 4) - 492 + month_len[m-1]
+    return ((y - 1970) * 365) + (y / 4) - 493 + month_len[m-1]
+
+# 21/Jul/2008:18:09:00 -0700   -->   1216688940
+def apache2unixtime(t):
+    return (((((date_ordinal(int(t[7:11]), months[t[3:6]]) + int(t[0:2]))*24) + int(t[12:14]))*60 + int(t[15:17]))*60) + int(t[18:20]) + tzs.get(t[21:26], 0)
+
+# 21/Jul/2008:18:09:00 -0700   -->   (2008, 7, 21, 18, 9)
+def apache2dateparts(t):
+    return int(t[7:11]), months[t[3:6]], int(t[0:2]), int(t[12:14]), int(t[15:17])
 
 
 # keeps a count of seen remote IP addresses. returns
@@ -188,12 +187,10 @@ def fix_usec(s):
     else:
         return int(s)/1000
 
-# given a user-agent string, return (0, '') is it doesn't match the bot list
-# and (1, MATCH) if it does. used for the bot and botname fields.
+# given a user-agent string, return (0, '') or (1, <MATCH>)
 def parse_bots(ua):
-    m = re_robots.search(ua, re.I)
-    if m:
-        return (1, ua[m.start():m.end()])
+    m = re_robots.search(ua)
+    if m: return (1, ua[m.start():m.end()])
     return (0, '')
 
 # '/'         --> 'home'
@@ -217,7 +214,8 @@ col_fns = [
     ('ua',      ('uas',),     (lambda s: s[:30])),
     ('request', ('method', 'url', 'proto'), (lambda s: s.split(' '))),
     ('url',     ('class',),   classify_url),
-    ('ts',      ('ts', 'year', 'month', 'day', 'hour', 'minute'), apache2unixtime),
+    ('timestamp',      ('ts',),      apache2unixtime),
+    ('timestamp',      ('year', 'month', 'day', 'hour', 'minute'), apache2dateparts),
 ]
 
 # only possible if the geocoding lib is loaded.
@@ -606,15 +604,14 @@ def print_mode(reqs, fields):
 # {'foo':bar,'a':'b'}, ('foo'), 6   -->  "b\315\267^O\371"  (first 6 bytes of md5('bar'))
 # HACK: the default byte_len of 6 (48 bits) should be fine for most applications. If you 
 # expect to process more than 10 to 15 million aggregate records (eg, grouping by url 
-# and user-agent over millions of logs) AND you need absolute accuracy, by all means
+# or user-agent over millions of logs) AND you need absolute accuracy, by all means
 # increase the byte_len default.
 def id_from_dict_keys(h, keys, byte_len=6):
-    #return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
-    return md5.md5(','.join([str(h[k]) for k in keys])).hexdigest()
+    return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
 
 
 def keyfns(order_by):
-    if len(order_by) > 1:
+    if order_by and len(order_by) > 1:
         key_fn =  (lambda v: [v[1][i] for i in order_by])
         key_fn2 = (lambda v: [v[i]    for i in order_by])
     else:
@@ -679,7 +676,6 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
         running_list = {}
         key_fn, key_fn2 = keyfns(order_by)
 
-
     lastt = time.time()
 
     for r in reqs:
@@ -689,8 +685,6 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
             lastt = time.time()
             warn ('%0.2f processed %d records...' % (t, cnt))
 
-        # HACK: to save RAM, key is the first 6 bytes of the md5 of the group_by 
-        # fields. This should give collision *resistance* for up to 10^7 keys.
         key = id_from_dict_keys(r, group_by)
         if not table.has_key(key):
             table[key] = copy(blank)
@@ -699,7 +693,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
         for idx,(op,field) in enumerate(agg_fields):
             table[key][idx+1] = agg_fns[op](idx+1, r, field, table, key)
 
-        # sort & prune: It's a space-saving way to sort a large list when you only want the top N.
+        # sort & prune periodically
         if limit:
             running_list[key] = table[key]
             if cnt % SORT_BUFFER_LENGTH:
@@ -725,10 +719,9 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
             if using_disk and cnt % DISC_SYNC_CNT == 0:
                 warn ('sync()ing records to disk...')
                 table.sync()
-                warn ('done.')
 
 
-    # return the records & printing format, and optionally the sorting function.
+    # return the records & printing format
     # for silly reasons we have to also return the tmpfile and the table object.
     return records, fmt, tmpfile, table
 

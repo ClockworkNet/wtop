@@ -1,2 +1,3 @@
 #!/bin/sh
-logrep -m top -f 'bot=0' -c "$2"
+# you may wish to add -H to see only human traffic
+logrep -m top -c "$2"

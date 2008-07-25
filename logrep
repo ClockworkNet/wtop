@@ -37,7 +37,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
                      AVAILABLE FIELDS:
                         msec       millisecond response time
-                        ip         The IP *or* hostname of the client
+                        ip         The IP or hostname of the client
                         ipcnt      # of hits from the same IP address
                         url        The path of the request, eg '/home'
                         ref        'Referer' header
@@ -92,14 +92,13 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         304	798	15.76
 
    -s LIM:FIELDS:DIRECTION
-   --sort            Use this option to get the top N aggregate records 
-                     ordered by fields in --output. LIMIT is the number
-                     of records to return, FIELDS is a comma-delimited 
-                     list of column positions starting with 1, and 
-                     DIRECTION is either 'descending' (default) or
-                     'ascending'.
+   --sort            Use this option to sort & limit aggregate records. 
+                     LIMIT is the number of records to return, FIELDS 
+                     is a comma-delimited list of column positions 
+                     starting with 1, and DIRECTION is either 
+                     'descending' (default) or 'ascending'.
 
-                     Example (total bytes sent ordered by hour & minute)
+                     Example (total bytes sent, by hour & minute)
                      $ logrep -o 'hour,minute,sum(bytes)' -s'3600:1,2:a'
                         12	0	1895927
                         12	1	7418972
@@ -115,7 +114,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         /about   2703
                         ...
 
-   -l LAST_N         (grep mode only) Scan the last N log lines.
+   -l LAST_N         (grep mode) Only read the last N log lines.
    --last
 
 
@@ -124,10 +123,6 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
-
-   -x-tmp-dir DIR    Tell logrep to spill temporary data into the 
-   (EXPERIMENTAL)    specified directory. Useful for grep mode jobs
-                     that you see using a lot of RAM.
 
    LOG_FILE          The path to a log file. By default logrep will
                      read from the file path specified in /etc/wtop.cfg
@@ -170,7 +165,7 @@ def runit():
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
-            'x-tmp-dir=', 'x-cores=', 'x-thread-id=', 'x-thread-output='))
+            'x-tmp-dir='))
  
     last_n                   = None
     include_classes          = []
@@ -192,10 +187,6 @@ def runit():
     MODE                     = 'grep'
     cfg                      = '/etc/wtop.cfg'
 
-    x_cores                  = None    # experimental multicore
-    x_thread_id              = 0
-    x_thread_output          = None
-
     grep_excludes            = []     # deprecated
     grep_filters             = []     # deprecated
 
@@ -216,11 +207,9 @@ def runit():
             uncompiled_field_filters.append('bot=1')
         elif o in ('-l', '--last'):
             last_n = int(v)
-
-                
         elif o in ('-f', '--filter'):
             uncompiled_field_filters.append(v)
-        elif o in ('-d'):
+        elif o == '-d':
             logrep.LOG_LEVEL = 2
         elif o in ('-q', '--quiet'):
             logrep.LOG_LEVEL = 0
@@ -233,15 +222,6 @@ def runit():
                 cfg = v
 
         # experimental
-        elif o == '--x-cores':
-            x_cores = min(int(v), 32)
-        elif o == '--x-thread-id':
-            x_thread_id = int(v)
-        elif o == '--x-thread-output':
-            x_thread_output = v
-
-
-
         elif o == '--x-tmp-dir':
             if not os.path.exists(v) or not(os.path.isdir(v)):
                 raise Exception("'%s' is not a directory" % v)
@@ -269,9 +249,6 @@ def runit():
 
     if has_agg and MODE != 'grep':
         raise Exception("aggregate functions are only allowed in -m grep mode")
-
-    if x_cores and not has_agg:
-        raise Exception("right now, --x-cores only works when you have aggregate functions in -o")
 
     if has_agg and not group_by:
         logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
@@ -304,7 +281,6 @@ def runit():
             log = sys.stdin
 
         else: # explicit file.
-           # logfiles = [args[0]] #logfiles = logs_for_date(args[0])
             log = open(args[0], 'r')
            # log = mmap_file(args[0])
             
@@ -315,38 +291,9 @@ def runit():
                 log = logrep.gen_cat(logrep.gen_open(logfiles))
 
 
-    # various raw log line filters. deprecated.
+    # various raw log line filters. deprecated?
     for e in grep_excludes: log = logrep.line_exclude(log, e)
     for f in grep_filters:  log = logrep.line_filter(log, f)
-
-    # multicore flag! This means we massage the arguments a bit, 
-    # then popen() child processes to do the actual work. 
-    if x_cores and not x_thread_id:
-        child_argv = sys.argv
-
-        # if there is an explicit log file in the args, kill it for children.
-        if args: del child_argv[-1]
-        
-        # multiply the limit clause by number of threads to prevent 
-        # rounding errors at the tail of the list. 
-        d = {True: 'desc', False: 'asc'}
-        lim_string = "%d:%s:%s" % (agg_limit * x_cores, ','.join(map(str, order_by)), d[order_descending])
-
-        children = []
-        outputs = []
-        for i in range(x_cores):
-            logrep.warn('starting thread %d' % (i+1))
-            outputs.append(tempfile.mkstemp(prefix='logrep-thread-%d-'%(i+1))[1])
-            extra_args = ['--x-thread-id', str(i+1), '--x-thread-output=%s'%outputs[i], '--sort', lim_string, '-']
-            children.append(Popen(child_argv + extra_args, stdin=PIPE, stdout=sys.stdout, stderr=sys.stderr, close_fds=True))
-
-        if has_agg:
-            multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit)
-        # there should be an "else:" here, but there is an interesting problem 
-        # with using multiple processes for grep: the lines arrive out of order.
-
-        sys.exit(0)
-
 
     # recompile the log format regexp given the relevant fields. 
     # This can yield a big performance boost.
@@ -380,21 +327,14 @@ def runit():
             if has_agg:
                 # todo: these arg signatures are fugly
                 records, fmt, tmpfile, table = logrep.calculate_aggregates(reqs, agg_fields, group_by, order_by, agg_limit, order_descending, x_tmp_file)
-
-                # if I'm a child thread, save output to a temp file.
-                if x_thread_output:
-                    o = open(x_thread_output, 'wb')
-                    cPickle.dump(dict(records=records, fmt=fmt), o)
-                    o.close()
-
-                # sort, prune & print it all out.
+                
+                if agg_limit:
+                    sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
+                    rows = sort_fn(records)
                 else:
-                    if agg_limit:
-                        sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
-                        rows = sort_fn(records)
-                    else:
-                        rows = records.values()
-                    logrep.agg_mode(rows, fmt)
+                    rows = records.values()
+
+                logrep.agg_mode(rows, fmt)
 
                 if tmpfile:
                     table.close()
@@ -407,80 +347,6 @@ def runit():
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
-
-
-import mmap, os.path
-def mmap_file(fname):
-    fileobj = open(fname)
-    filemap = mmap.mmap(
-        fileobj.fileno(),
-        os.path.getsize(fname),
-        access=mmap.ACCESS_READ
-    )
-    return filemap
-
-
-# http://effbot.org/zone/wide-finder.htmg
-def getchunks(f, size=1024*1024):
-    while 1:
-        start = f.tell()
-        f.seek(size, 1)
-        s = f.readline()
-        yield start, f.tell() - start
-        if not s:
-            break
-
-
-def multicore_with_aggregates(log, children, outputs, agg_fields, order_by, order_descending, agg_limit):
-#    chunks = getchunks(log, 1024*16)
-    go = True
-    while go:
-        for c in children:
-            try:
-#                 s,e = chunks.next()
-#                 log.seek(s)
-#                 c.stdin.write(log.read(e))
-
-                c.stdin.write(log.next())
-            except:
-                go = False
-                break
-
-    # now tell them they've been good and put them to bed.
-    for c in children:
-        c.stdin.close()
-        c.wait()
-
-    merge_fns = {
-            None:    (lambda a,b: a),
-            'count': (lambda a,b: a+b),
-            'sum':   (lambda a,b: a+b),
-            'min':   (lambda a,b: min(a,b)), 
-            'max':   (lambda a,b: max(a,b)),
-            'avg':   (lambda a,b: (a+b)/2.0),  # hack: do you really think you can get away with this?
-            'var':   (lambda a,b: (a+b)/2.0),
-            'dev':   (lambda a,b: (a+b)/2.0)}
-
-    records = {}
-    fmt = None
-    for o in outputs:
-        f = open(o, 'r')
-        s = cPickle.load(f)
-        f.close()
-        for k,v in s['records'].iteritems():
-            if records.has_key(k):
-                for idx,(op,field) in enumerate(agg_fields):
-                    records[k][idx+1] = merge_fns[op](records[k][idx+1], v[idx+1])
-            else:
-                records[k] = v
-            fmt = s['fmt']
-
-    sort_fn = logrep.sort_fn(order_by, order_descending, agg_limit)
-    rows = sort_fn(records)
-    for r in rows:
-        print fmt % tuple(r[1:])
-
-
 
 if __name__ == '__main__':
 #    import cProfile; cProfile.run('runit()')
