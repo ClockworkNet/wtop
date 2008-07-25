@@ -463,7 +463,7 @@ def compile_orderby(commands):
     if len(c) > 1:
         order_by = map(int, c[1].split(','))
     if len(c) > 2:
-        descending = (c[2][0].lower() == 'd') # True: descending, False: ascending
+        descending = (c[2][0].lower() == 'd')
     return limit, order_by, descending
 
 
@@ -525,11 +525,8 @@ def compile_filter(commands):
     # lazy eval of conditions. 
     def predicate(obj, conditions):
         for key, op, value in conditions:
-            if op == '~': 
-                if not value.search(str(obj[key])):
-                    return False
-            elif op == '!~': 
-                if value.search(str(obj[key])):
+            if op[-1] == '~': 
+                if (not value.search(str(obj[key]))) != (op == '!~'):
                     return False
             elif (cmp_operators[op] == cmp(obj[key], value)) == (op == '!='):
                 return False
@@ -668,7 +665,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
     # post-processing for more complex aggregates
     post_fns = {
         'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
-        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)))
+        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)) / (sums / float(count)))
     }
 
     # various stuff needed if we are also running a limit/sort
