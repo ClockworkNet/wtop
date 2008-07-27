@@ -12,14 +12,14 @@ except:
     pass
 
 
-LOG_LEVEL = 1  # 0 == quiet, 1 == normal, 2 == debug
-DISC_SYNC_CNT = 100000        # number of records to hold in memory before flushing to disk
+LOG_LEVEL          = 1        # 0 == quiet, 1 == normal, 2 == debug
+DISC_SYNC_CNT      = 100000   # number of records to hold in memory before flushing to disk
 SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
-PROGRESS_INTERVAL = 20000     # ie warn('processed X lines...')
+PROGRESS_INTERVAL  = 20000    # ie warn('processed X lines...')
 
 # randomize the disc sync and sort_buffer len to reduce the 
 # chance of thrashing the disks in mutlicore mode.
-DISC_SYNC_CNT += (DISC_SYNC_CNT * 0.08 * random.random())
+DISC_SYNC_CNT      += (DISC_SYNC_CNT * 0.08 * random.random())
 SORT_BUFFER_LENGTH += (SORT_BUFFER_LENGTH * 0.08 * random.random())
 
 
@@ -122,7 +122,6 @@ def format2regexp(fmt, relevant_fields=()):
         else:
             atom = skip_pattern
 
-
         if k.find('{') > -1:
             p = re.compile('%[\>\<\!,\d]*'+k.replace('}', '.').replace('{', '.'), re.I)
             pat = p.sub(atom, pat, re.I)
@@ -143,8 +142,7 @@ def safeint(s):
 
 ### timestamp parsing
 # This method is about 500% faster than the regex/strptime/timegm way. 
-months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 
-          'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
+months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
 
 # "There are 40 time zones instead of 24 as popularly believed..."
 # http://en.wikipedia.org/wiki/List_of_time_zones
@@ -152,9 +150,9 @@ tzs = {'-0800': 28800, '+1000': -36000, '+1245': -40500, '+0330': -9000, '-0100'
 
 # number of days from given year/month and 1 Jan 1970
 # hack: only accurate from 1970 to 2099
-month_len = (0,31,59,90,120,151,181,212,243,273,304,334)
+month_offset = (0,31,59,90,120,151,181,212,243,273,304,334)
 def date_ordinal(y, m):
-    return ((y - 1970) * 365) + (y / 4) - 493 + month_len[m-1]
+    return ((y - 1970) * 365) + (y / 4) - 493 + month_offset[m-1]
 
 # 21/Jul/2008:18:09:00 -0700   -->   1216688940
 def apache2unixtime(t):
@@ -167,7 +165,7 @@ def apache2dateparts(t):
 
 # keeps a count of seen remote IP addresses. returns
 # a value for the ipcnt field. This is a potential
-# memory problem on large (ie, >10M records) runs.
+# nb: possbile memory problem with > 10M records
 reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 ipcnts = {}
 def count_ips(ip):
@@ -221,21 +219,31 @@ col_fns = [
     ('status',     ('status',),  int),
     ('bytes',      ('bytes',),   safeint),
     ('ip',         ('ipcnt',),   count_ips),
-    ('ua',         ('bot', 'botname'), parse_bots),
+    ('ua',         ('bot', 
+                    'botname'),  parse_bots),
     ('ua',         ('uas',),     (lambda s: s[:30])),
-    ('request',    ('method', 'url', 'proto'), (lambda s: s.split(' '))),
+    ('request',    ('method', 
+                    'url', 
+                    'proto'),    (lambda s: s.split(' '))),
     ('url',        ('class',),   classify_url),
+    ('timestamp',  ('year', 
+                    'month', 
+                    'day', 
+                    'hour', 
+                    'minute'),   apache2dateparts),
     ('timestamp',  ('ts',),      apache2unixtime),
-    ('timestamp',  ('year', 'month', 'day', 'hour', 'minute'), apache2dateparts),
-    ('ref',        ('refdom',), domain),
+    ('ref',        ('refdom',),  domain),
 ]
 
-# only possible if the geocoding lib is loaded. also not that this does NOT
-# work if HostnameLookups is on.
+# only possible if the geocoding lib is loaded. 
+# hack: this does NOT work if HostnameLookups is on.
 if geocoder: 
     col_fns.append(('ip', ('country',), geocoder.country_name_by_addr))
     col_fns.append(('ip', ('cc',),      geocoder.country_code_by_addr))
 
+def listify(x):
+    if not hasattr(x,'__iter__'): return [x]
+    return x
 
 # apply the col_fns to the records
 def field_map(lines, relevant_fields):
@@ -243,12 +251,7 @@ def field_map(lines, relevant_fields):
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
     for line in lines:
         for source_col, new_cols, fn in relevant_col_fns:            
-            vals = fn(line[source_col])
-            if len(new_cols) == 1:    # todo: ugly & slow
-                line[new_cols[0]] = vals
-            else:
-                for i, col in enumerate(new_cols):
-                    line[col] = vals[i] 
+            line.update(dict(zip(new_cols, listify(fn(line[source_col])))))
         yield line
 
 # trace dependencies of fields and return all fields needed to calculate the ones asked for.

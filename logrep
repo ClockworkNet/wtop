@@ -9,6 +9,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
         [--sort LIM:FIELDS:DIRECTION] [--config CFG_FILE] [--quiet] 
         [LOG_FILE]
 
+
    -m MODE           There are three modes:
    --mode              - "grep" parses an entire log file (default).
                        - "tail" reads from the end of the file.
@@ -183,7 +184,7 @@ def runit():
     agg_fields               = []
     has_agg                  = False
     group_by                 = []
-    order_by                 = None     # experimental
+    order_by                 = None
     order_descending         = True
     agg_limit                = 0
     x_tmp_file               = None
