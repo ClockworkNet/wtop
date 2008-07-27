@@ -78,7 +78,7 @@ requoted_skipped = r'[^"]*'
 # {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
     'h' : ('ip',         restr, restr_skipped), # NB: %h may clobber %a or vice-versa
-    'a' : ('ip',         restr, restr_skipped),
+    'a' : ('ip-addr',    restr, restr_skipped),
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
     't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
@@ -166,9 +166,10 @@ def apache2dateparts(t):
 
 
 # keeps a count of seen remote IP addresses. returns
-# a value for the ipcnt field
+# a value for the ipcnt field. This is a potential
+# memory problem on large (ie, >10M records) runs.
 reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
-ipcnts = {}  # todo: possible memory problem on long runs
+ipcnts = {}
 def count_ips(ip):
     # compact the ip to 4 bytes for the ipcnts table
     ipkey = ip
@@ -178,9 +179,9 @@ def count_ips(ip):
     return ipcnts[ipkey]
 
 
-
 # Apache's %D returns an int of microseconds. nginx's $request_time
 # equivalent is a float of S.MMM, so do the Right Thing.
+# returns *milli*seconds
 def fix_usec(s):
     if s.find('.') > -1:
         return int(float(s) * 1000)
@@ -203,22 +204,34 @@ def classify_url(url):
     if m: return m.group(1)
     return 'UNKNOWN'
 
+# return domain part of a URL.
+# 'http://www.foo.com/bar.html'                 --> 'www.foo.com'
+# 'example.com:8800/redirect.php?url=blah.html' --> 'example.com:8800'
+re_domain = re.compile(r'(?:http://)?([^/]+)')
+def domain(url):
+    m = re_domain.match(url)
+    if m: return m.group(1)
+    return url
 
 # field massage & mapping to derived fields
+# SOURCE-FIELD, (DERIVED-FIELDS), FUNCTION
+# note that 'class' derives from 'url', which derives from 'request'
 col_fns = [
-    ('msec',    ('msec',),    fix_usec),
-    ('status',  ('status',),  int),
-    ('bytes',   ('bytes',),   safeint),
-    ('ip',      ('ipcnt',),   count_ips),
-    ('ua',      ('bot', 'botname'), parse_bots),
-    ('ua',      ('uas',),     (lambda s: s[:30])),
-    ('request', ('method', 'url', 'proto'), (lambda s: s.split(' '))),
-    ('url',     ('class',),   classify_url),
-    ('timestamp',      ('ts',),      apache2unixtime),
-    ('timestamp',      ('year', 'month', 'day', 'hour', 'minute'), apache2dateparts),
+    ('msec',       ('msec',),    fix_usec),
+    ('status',     ('status',),  int),
+    ('bytes',      ('bytes',),   safeint),
+    ('ip',         ('ipcnt',),   count_ips),
+    ('ua',         ('bot', 'botname'), parse_bots),
+    ('ua',         ('uas',),     (lambda s: s[:30])),
+    ('request',    ('method', 'url', 'proto'), (lambda s: s.split(' '))),
+    ('url',        ('class',),   classify_url),
+    ('timestamp',  ('ts',),      apache2unixtime),
+    ('timestamp',  ('year', 'month', 'day', 'hour', 'minute'), apache2dateparts),
+    ('ref',        ('refdom',), domain),
 ]
 
-# only possible if the geocoding lib is loaded.
+# only possible if the geocoding lib is loaded. also not that this does NOT
+# work if HostnameLookups is on.
 if geocoder: 
     col_fns.append(('ip', ('country',), geocoder.country_name_by_addr))
     col_fns.append(('ip', ('cc',),      geocoder.country_code_by_addr))

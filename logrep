@@ -41,12 +41,13 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         ipcnt      # of hits from the same IP address
                         url        The path of the request, eg '/home'
                         ref        'Referer' header
+                        refdom     domain part of the 'Referer' header
                         bytes      Bytes sent 
                         ua         User-agent header
                         uas        First 30 characters of ua
                         ts         Unix timestamp of the request
                         year, month, day, hour, minute
-                        class      The URL 'class'
+                        class      URL class, configurable in wtop.cfg
                         status     HTTP status code, eg 200, 301, 404
                         proto      Protocol version, eg 'HTTP/1.1'
                         method     HTTP method, eg 'GET', 'POST'
@@ -133,6 +134,9 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     will enable two extra fields for filtering and output: country 
     (eg "United Kingdom"), and cc (ISO-639 country code, eg "UK"). These
     are a *guess* at the country the HTTP client is from.
+   
+    BUG: if you have HostnameLookups on in your Apache settings, which
+    is on by default in some older versions, geocoding may not work.
 
  EXAMPLES:
  
@@ -281,8 +285,7 @@ def runit():
             log = sys.stdin
 
         else: # explicit file.
-            log = open(args[0], 'r')
-           # log = mmap_file(args[0])
+            logfiles = [args[0]]
             
         if not log:
             if last_n:
