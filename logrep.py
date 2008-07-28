@@ -78,7 +78,7 @@ requoted_skipped = r'[^"]*'
 # {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
     'h' : ('ip',         restr, restr_skipped), # NB: %h may clobber %a or vice-versa
-    'a' : ('ip-addr',    restr, restr_skipped),
+    'a' : ('ip',         restr, restr_skipped),
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
     't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
@@ -106,6 +106,9 @@ def lcase(s):
         return s.lower()
     return s
 
+# given an Apache LogFormat string and an optional list of relevant fields,
+# returns a regular expression that will parse the equivalent log line and 
+# extract the necessary fields.
 def format2regexp(fmt, relevant_fields=()):
     red = re.compile('%[\>\<\!,\d]*([\}\{\w\-]+)')
     directives = map(lcase, red.findall(fmt))
@@ -164,7 +167,7 @@ def apache2dateparts(t):
 
 
 # keeps a count of seen remote IP addresses. returns
-# a value for the ipcnt field. This is a potential
+# a value for the ipcnt field.
 # nb: possbile memory problem with > 10M records
 reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 ipcnts = {}
@@ -219,18 +222,11 @@ col_fns = [
     ('status',     ('status',),  int),
     ('bytes',      ('bytes',),   safeint),
     ('ip',         ('ipcnt',),   count_ips),
-    ('ua',         ('bot', 
-                    'botname'),  parse_bots),
+    ('ua',         ('bot', 'botname'),  parse_bots),
     ('ua',         ('uas',),     (lambda s: s[:30])),
-    ('request',    ('method', 
-                    'url', 
-                    'proto'),    (lambda s: s.split(' '))),
+    ('request',    ('method', 'url', 'proto'),    (lambda s: s.split(' '))),
     ('url',        ('class',),   classify_url),
-    ('timestamp',  ('year', 
-                    'month', 
-                    'day', 
-                    'hour', 
-                    'minute'),   apache2dateparts),
+    ('timestamp',  ('year', 'month', 'day', 'hour', 'minute'),   apache2dateparts),
     ('timestamp',  ('ts',),      apache2unixtime),
     ('ref',        ('refdom',),  domain),
 ]
@@ -246,16 +242,18 @@ def listify(x):
     return x
 
 # apply the col_fns to the records
-def field_map(lines, relevant_fields):
+def field_map(log, relevant_fields):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
-    for line in lines:
-        for source_col, new_cols, fn in relevant_col_fns:            
-            line.update(dict(zip(new_cols, listify(fn(line[source_col])))))
+    for record in log:
+        for source_col, new_cols, fn in relevant_col_fns:        
+            record.update(dict(zip(new_cols, listify(fn(record[source_col])))))
         yield line
 
-# trace dependencies of fields and return all fields needed to calculate the ones asked for.
-# eg: 'class' depends on 'url' which depends on 'request'.
+# given a list of fields the user has asked for, look at the col_fns
+# structure to see what parent fields they might depend on. for example, 
+# 'year' depends on 'timestamp'. The idea is to only extract the fields
+# from the raw log line that we actually need.
 # two levels is ok for now and I'm too tired to write something recursive
 def field_dependencies(requested_fields):
     deps = Set(requested_fields)
