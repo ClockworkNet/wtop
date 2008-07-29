@@ -11,9 +11,9 @@ $suffix="sample.log | md5 -q";
     "-f 'url!~/q/,msec>500' -o 'url,msec,bot,ts,class'",
     "-f 'url!~/q/,msec<500' -o 'url,msec,bot,ts,class,bytes'",
     "-f 'url!~/q/,msec<500,bot=1' -o 'url,msec,bot,ts,class,bytes'",
-    "-o 'url,avg(msec),count(msec),var(bytes),sum(bytes)'",
-    "-o 'url,avg(msec),count(msec),var(bytes),sum(bytes)' --sort '10:2,3:a'",
-    "-o 'url,avg(msec),count(msec),var(bytes),sum(bytes)' --sort '10:2,3:d'"
+    "-o 'url,avg(msec),count(msec),dev(bytes),sum(bytes)'",
+    "-o 'url,avg(msec),count(msec),dev(bytes),sum(bytes)' --sort '10:2,3:a'",
+    "-o 'url,avg(msec),count(msec),dev(bytes),sum(bytes)' --sort '10:2,3:d'"
 );
 
 #"""time ./logrep --config wtop.cfg --output='status,count(*),dev(bytes),avg(bytes),min(bytes),max(bytes)' --x-tmp-dir='/tmp' -s '10:3:a' -q access.log """

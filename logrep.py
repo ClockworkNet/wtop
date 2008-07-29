@@ -248,7 +248,7 @@ def field_map(log, relevant_fields):
     for record in log:
         for source_col, new_cols, fn in relevant_col_fns:        
             record.update(dict(zip(new_cols, listify(fn(record[source_col])))))
-        yield line
+        yield record
 
 # given a list of fields the user has asked for, look at the col_fns
 # structure to see what parent fields they might depend on. for example, 
@@ -468,6 +468,9 @@ def line_exclude(lines, pat):
         if not r.search(ln):
             yield ln
 
+
+
+
 # 100:1,2:desc --> limit 100, column 1 then column 2, descending order
 def compile_orderby(commands):
     c = commands.split(':')
@@ -479,7 +482,6 @@ def compile_orderby(commands):
     if len(c) > 2:
         descending = (c[2][0].lower() == 'd')
     return limit, order_by, descending
-
 
 # "sum(foo),bar,max(baz)"  -->  ('sum', 'foo'), (None, 'bar'), ('max', 'baz')
 re_agg = re.compile(r'(?:(sum|count|avg|min|max|var|dev)\(([a-z\*1]+|)\)|([a-z]+))')
@@ -634,6 +636,7 @@ def sort_fn(order_by, descending, limit):
     key_fn, key_fn2 = keyfns(order_by)
     return (lambda table: sorted(table.itervalues(), key=key_fn2, reverse=descending)[0:limit])
 
+#bleh -- this fn is too long
 MAXINT = 1<<64
 def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
     table = {}
@@ -679,7 +682,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
     # post-processing for more complex aggregates
     post_fns = {
         'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
-        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)) / (sums / float(count)))
+        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)) / ((sums / float(count))+1))
     }
 
     # various stuff needed if we are also running a limit/sort
