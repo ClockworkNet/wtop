@@ -51,7 +51,7 @@ def configure(cfg='/etc/wtop.cfg'):
     ## compile a godawful bunch of regexps
     re_robots = re.compile(config.get('patterns', 'robots'), re.I)
     re_generic = re.compile(config.get('patterns', 'generic'))
-    re_classes = [(x[0], re.compile(x[1])) for x in classes]
+    re_classes = [(x[0], re.compile(x[1], re.I)) for x in classes]
 
     # these may be overridden later by the logrep command line program because it
     # knows the fields the user asked for.
