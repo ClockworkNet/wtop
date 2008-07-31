@@ -241,7 +241,7 @@ def runit():
     logrep.configure(cfg)
 
     if MODE == 'top':
-        output_fields = ['status', 'request', 'msec', 'ts']
+        output_fields = ['status', 'msec', 'ts', 'class']
 
     if not output_fields:
         output_fields = logrep.DEFAULT_OUTPUT_FIELDS

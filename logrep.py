@@ -35,7 +35,7 @@ config = {}
 
 # yes, this is ugly.
 def configure(cfg='/etc/wtop.cfg'):
-    global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
+    global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MAX_REQUEST_TIME, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
 
     config = ConfigParser.ConfigParser()
     config.read(cfg)
@@ -385,17 +385,21 @@ class rrd2:
 
     def get(self):
         ts = time.time()
-        return filter((lambda x: (ts-x[0]) < self.window), self.buf)
+        items = sorted(filter((lambda x: (ts-x[0]) < self.window), self.buf))
+        if items:
+            return items, float(ts - items[0][0])
+        else:
+            return [], 1.0
 
     def avg(self):
-        items = self.get()
+        items, mwindow = self.get()
         cnt = 0
         for item in items:
             cnt += item[1]
-        return cnt / self.window
+        return cnt / mwindow
 
     def stats(self):
-        items = self.get()
+        items, mwindow = self.get()
         cnt = 0
         msec_tot = 0
         msec_mn = 1<<32
@@ -411,7 +415,7 @@ class rrd2:
 
         if not cnt: return (0,0,0,0,'',0,0)
         
-        rps = cnt / self.window
+        rps = cnt / mwindow
         msec_avg = msec_tot / float(cnt)
         msec_stddev = stddev(msecs, msec_avg)
         sparkline = hist_sparkline(msecs, msec_mn, msec_mx)
@@ -453,6 +457,8 @@ def hist_sparkline(lst, mn, mx):
 def pretty_float(f):
     if f < 0.01: return '--'
     return ('%.2f' % f).replace('0.', '.')
+
+
 
 
 # these two are suspiciously similar to gen_grep
@@ -565,8 +571,6 @@ def tail_n(filename, num):
     for line in os.popen('tail -%d "%s"' % (num, filename)):
         yield line
 
-
-
 ## modes
 def gen_top_stats(reqs, every=5):
     stats = {}
@@ -596,7 +600,7 @@ def apache_top_mode(reqs):
         for c in sorted(stats.keys()):
             # detailed stats for "200 OK" requests, simple averages for the rest
             rps, avg, cnt, stdev, sparkline, mn, mx = stats[c][0].stats()
-            if rps < MIN_RPS: 
+            if rps < MIN_RPS or cnt < 2: 
                 continue
             x3, x4, x5, slow = map(lambda x: pretty_float(x.avg()), stats[c][1:])
             buf.append('% 34s % 9s % 5d % 4d  %s % 5d % 7s % 7s % 7s % 7s' % (
