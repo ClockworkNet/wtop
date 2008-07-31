@@ -469,8 +469,6 @@ def line_exclude(lines, pat):
             yield ln
 
 
-
-
 # 100:1,2:desc --> limit 100, column 1 then column 2, descending order
 def compile_orderby(commands):
     c = commands.split(':')
