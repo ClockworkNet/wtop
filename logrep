@@ -3,9 +3,8 @@
 cmd_options = """
 A handy tool for sophisticated, ad-hoc analysis of webserver logs.
 
-Useage:
 logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
-        [--output FIELDS] [--filters FILTERS] [--last LAST_N] 
+        [--output FIELDS] [--filter FILTERS] [--last LAST_N] 
         [--sort LIM:FIELDS:DIRECTION] [--config CFG_FILE] [--quiet] 
         [LOG_FILE]
 
@@ -31,40 +30,44 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      (!=), and regular expression match (~ and !~).
 
                      For example: Filter successful requests that were 
-                     over 10kB in size and do NOT have 'example.com' 
-                     in the Referer field: 
+                     over 10kB in size that do not have 'example.com'
+                     in the Referer field:
 
-                        -f "status=200,bytes>10000,ref!~example.com" 
+                        -f "status=200,bytes>10000,refdom!~example.com" 
 
                      AVAILABLE FIELDS:
                         msec       millisecond response time
-                        ip         The IP or hostname of the client
-                        ipcnt      # of hits from the same IP address
+                        ip         The IP address of the client
                         url        The path of the request, eg '/home'
                         ref        'Referer' header
                         refdom     domain part of the 'Referer' header
                         bytes      Bytes sent 
                         ua         User-agent header
                         uas        First 30 characters of ua
-                        ts         Unix timestamp of the request
-                        year, month, day, hour, minute
                         class      URL class, configurable in wtop.cfg
                         status     HTTP status code, eg 200, 301, 404
                         proto      Protocol version, eg 'HTTP/1.1'
                         method     HTTP method, eg 'GET', 'POST'
                         bot        Is a robot? 1 or 0. Only a guess.
                         botname    eg 'Googlebot', 'Nutch', 'Slurp', etc
-                        cc         ISO-639 country code (see below)
+                        ts         Unix timestamp of the request
+                        year
+                        month
+                        day
+                        hour
+                        minute
                         country    country name (see Geocoding, below)
+                        cc         ISO-639 country code (see below)
 
 
    -H, -R            Shorthand for a useful but incomplete filter of 
-   --humans-only     robot user-agents. Equivalent to --filter 'bot=0'
-   --robots-only     or --filter 'bot=1'
+                     robot user-agents. Equivalent to --filter 'bot=0'
+                     or --filter 'bot=1'
 
 
-   -o FIELDS         Output only the given fields, tab-delimited.
-   --output                   
+   -o FIELDS         Output only the given fields, tab-delimited. All
+   --output          of the fields listed for --filter are available.
+
                      Example:
                      $ logrep -o 'cc,msec,url'
                         UK      34      /Madonna.jpg
@@ -78,20 +81,20 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      on numeric fields such as bytes and msec. Any
                      non-aggregate fields in the list will be used to
                      group records together.
-                        avg(FIELD)   mean
-                        min(FIELD)
-                        max(FIELD)
-                        count(*)
-                        sum(FIELD)
+                        count(*)     
+                        avg(FIELD)   mean average
+                        min(FIELD)   lowest seen value
+                        max(FIELD)   highest seen value
+                        sum(FIELD)   summation of all values
                         var(FIELD)   population variance
-                        dev(FIELD)   std deviation (sqrt of variance)
+                        dev(FIELD)   deviation (square root of variance)
 
                      Example (grouped by status):
                      $ logrep -o 'status,count(*),avg(msec)'
-                        200	4196	242.58
-                        302	5	79.75
-                        404	1	9.00
-                        304	798	15.76
+                        200 4196    242.58
+                        302 5       79.75
+                        404 1       9.00
+                        304 798     15.76
 
    -s LIM:FIELDS:DIRECTION
    --sort            Use this option to sort & limit aggregate records. 
@@ -155,7 +158,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
      $ logrep -o 'class,max(bytes),avg(msec)' access.log
 
 
-0.6.1   31 July 2008    carlos@bueno.org   http://code.google.com/p/wtop
+0.6.2   1 Sep 2008    carlos@bueno.org   http://code.google.com/p/wtop
 """
 
 import logrep
@@ -170,7 +173,7 @@ def runit():
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
-            'x-tmp-dir='))
+            'x-tmp-dir=', 'x-host-hack'))
  
     last_n                   = None
     include_classes          = []
@@ -231,7 +234,10 @@ def runit():
             if not os.path.exists(v) or not(os.path.isdir(v)):
                 raise Exception("'%s' is not a directory" % v)
             x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
-        
+
+        elif o == '--x-host-hack':
+            logrep.hostname_hack()
+
         # deprecated
         elif o == '-g': grep_filters.append(v)
         elif o == '-v': grep_excludes.append(v)
@@ -250,13 +256,13 @@ def runit():
         field_filter_fn, filtered_fields = logrep.compile_filter(','.join(uncompiled_field_filters))
 
     if ('country' in output_fields or 'cc' in output_fields) and (not logrep.geocoder):
-        raise Exception("can't load geoip library, yet you asked for cc or country fields.")
+        raise Exception("I can't load the geoip library, yet you asked for cc or country fields.")
 
     if has_agg and MODE != 'grep':
-        raise Exception("aggregate functions are only allowed in -m grep mode")
+        raise Exception("aggregate functions like 'avg(msec)' are only allowed in grep mode")
 
     if has_agg and not group_by:
-        logrep.warn('warn: -o has agg functions but no group by fields. Will print one line only.')
+        logrep.warn('warn: -o has agg functions but no group by fields. This means I will print one record only.')
 
     if (not has_agg) and agg_limit > 0:
         logrep.warn('warn: --sort is ignored if there are no aggregate functions in -o')

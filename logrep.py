@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import os, math, fnmatch, re, time, calendar, string, socket, sys, md5, random, ConfigParser
+import os, os.path, math, fnmatch, re, time, calendar, string, socket, sys, md5, random, ConfigParser, socket
 from copy import copy
 from sets import Set
 geocoder = None
@@ -77,8 +77,8 @@ requoted_skipped = r'[^"]*'
 
 # {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
-    'h' : ('ip',         restr, restr_skipped), # NB: %h may clobber %a or vice-versa
-    'a' : ('ip',         restr, restr_skipped),
+    'h' : ('ip',         restr, restr_skipped),  # rhost is an odd one, since the default Apache is %h
+    'a' : ('ip',         restr, restr_skipped),  # but HostnameLookups changes its content. bleh.
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
     't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
@@ -214,6 +214,19 @@ def domain(url):
     if m: return m.group(1)
     return url
 
+
+# todo.. the ':' thing is a defense against ipv6 addresses
+# also we're kind of relying on the OS to cache ip resolutions
+ipcache = {}
+def lookup_ip(rhost):
+    if not ipcache.has_key(rhost):
+        if (reip.match(rhost) or rhost[0] == ':'): return rhost
+        try:
+            ipcache[rhost] = socket.gethostbyname(rhost)
+        except:
+            ipcache[rhost] = rhost
+    return ipcache[rhost]
+
 # field massage & mapping to derived fields
 # SOURCE-FIELD, (DERIVED-FIELDS), FUNCTION
 # note that 'class' derives from 'url', which derives from 'request'
@@ -234,11 +247,16 @@ col_fns = [
 # only possible if the geocoding lib is loaded. 
 # hack: this does NOT work if HostnameLookups is on.
 if geocoder: 
-    col_fns.append(('ip', ('country',), geocoder.country_name_by_addr))
-    col_fns.append(('ip', ('cc',),      geocoder.country_code_by_addr))
+    col_fns.append(('ip', ('country',), (lambda ip: str(geocoder.country_name_by_addr(ip)))))
+    col_fns.append(('ip', ('cc',),      (lambda ip: str(geocoder.country_code_by_addr(ip)))))
+
+def hostname_hack():
+    global col_fns
+    col_fns = [('ip', ('ip',), lookup_ip)] + col_fns
+
 
 def listify(x):
-    if not hasattr(x,'__iter__'): return [x]
+    if not hasattr(x,'__iter__'): return (x,)
     return x
 
 # apply the col_fns to the records
@@ -280,19 +298,23 @@ def filter_by_class(reqs, include, exclude):
             continue
         yield r
 
-
-# access_log.YYYYMMDD
 def logs_for_date(dt):
     return sorted(gen_find(LOG_FILE+'.'+dt,LOG_ROOT), key=(lambda x: safeint(x.split('.')[-1])))
 
+# support for the most common rotatelogs scheme, which is to rotate at midnight
 def todays_logs():
-    return latest_log() #logs_for_date(time.strftime('%Y%m%d', time.localtime(time.time())))
+    gmt_midnight = int(time.time() / 86400) * 86400
+    r_file = "%s%s.%d" % (LOG_ROOT, LOG_FILE, gmt_midnight)
+    if os.path.isfile(r_file): 
+        return [r_file]
+    return [LOG_ROOT + LOG_FILE]
 
 def yesterdays_logs(): 
-    return logs_for_date(time.strftime('%Y%m%d', time.localtime(time.time()-86400)))
+    gmt_yesterday = (int(time.time() / 86400) - 1) * 86400
+    return ["%s%s.%d" % (LOG_ROOT, LOG_FILE, gmt_yesterday)]
 
 def latest_log():
-    return [LOG_ROOT + LOG_FILE]
+    return todays_logs()
 
 
 # these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1, YYYYMMDD.log.2, etc
@@ -519,8 +541,12 @@ def compile_aggregates(commands):
 #   This returns true if the foo key matches "ba", "baa", "bar" but not "abad" 
 #   AND if the value of the baz key is greater than 100.
 #
-#  There is implicit conversion of strings that look like numbers. There is no
-#  support for OR logic, grouping expressions by parenthesis, etc.
+#  There is implicit conversion of strings that look like numbers. 
+#  There is also support for = and != of multiple values:
+#    
+#  foo=(one,two,three)
+#  foo=one|two|three
+#
 #
 recmp = re.compile(r'([a-z]+)(>|<|=|\!=|\!~|\~)([^,]+)')
 def compile_filter(commands):
