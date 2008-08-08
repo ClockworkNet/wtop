@@ -124,13 +124,15 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 
    -c CFG_FILE       Feed logrep a custom config file. By default it 
-   --config          will use /etc/wtop.cfg
+   --config          will use:
+                        /etc/wtop.cfg     (Unix, Linux, BSD, OSX, etc)
+                        %HOME%\wtop.cfg   (Windows)
 
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
 
    LOG_FILE          The path to a log file. By default logrep will
-                     read from the file path specified in /etc/wtop.cfg
+                     read from the file path specified in wtop.cfg
                      If you specify '-', logrep will read from STDIN.
 
  GEOCODING:
@@ -139,8 +141,15 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     (eg "United Kingdom"), and cc (ISO-639 country code, eg "UK"). These
     are a *guess* at the country the HTTP client is from.
    
-    BUG: if you have HostnameLookups on in your Apache settings, which
-    is on by default in some older versions, geocoding may not work.
+ KNOWN BUG: 
+    If you have HostnameLookups On in your Apache settings geocoding 
+    will not work.
+
+    There is an experimental option --x-host-hack that will tell logrep
+    to perform DNS lookups on hostnames. This is a hack and will
+    result in lots of network traffic. It is better to turn 
+    HostnameLookups Off, or to add the %a directive to your LogFormat.
+
 
  EXAMPLES:
  
@@ -162,10 +171,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 """
 
 import logrep
-
-import cPickle, tempfile
-from subprocess import Popen, PIPE, call
-
+import cPickle, tempfile, re
 
 def runit():
     from sets import Set
@@ -270,8 +276,6 @@ def runit():
     if last_n and MODE != 'grep':
         logrep.warn("warn: -l LAST_N is only relevant in grep mode")
 
-
-
     # open the log(s) as a generator that yields raw lines
     log = None
     if MODE in ('top', 'tail', 'rrd'):
@@ -305,17 +309,25 @@ def runit():
     for e in grep_excludes: log = logrep.line_exclude(log, e)
     for f in grep_filters:  log = logrep.line_filter(log, f)
 
-    # recompile the log format regexp given the relevant fields. 
-    # This can yield a big performance boost.
+
     minimum_fields = []    
     if include_classes or exclude_classes:
         minimum_fields = ['class']
-    relevant_fields = logrep.field_dependencies(output_fields + filtered_fields + minimum_fields)
-    LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
+    relevant_fields = Set(output_fields + filtered_fields + minimum_fields)
 
+    if (logrep.LOG_FILE_TYPE == 'apache'):
+        # recompile the log format regexp given the relevant fields. 
+        # This can yield a big performance boost.
+        relevant_fields = logrep.field_dependencies(relevant_fields)
+        LOG_PATTERN,LOG_COLUMNS = logrep.format2regexp(logrep.config.get('main', 'log_format'), relevant_fields)
+        # parse the raw log lines into records & do any needed massage and derivation
+        reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
 
-    # parse the raw log lines into records & do any needed massage and derivation
-    reqs = logrep.apache_log(log, LOG_PATTERN, LOG_COLUMNS, relevant_fields)
+    else: ## iis is a bit more parser-friendly.
+        relevant_fields.add('url')
+        relevant_fields.add('query')
+        log = logrep.line_exclude(log, re.compile(r'^#|^[\s]+$'))
+        reqs = logrep.iis_log(log, relevant_fields)
 
     # pure classist discrimination
     if include_classes or exclude_classes:

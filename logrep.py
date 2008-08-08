@@ -29,33 +29,40 @@ def warn(s):
 
 
 # change these defaults in your wtop.cfg file
-LOG_ROOT = LOG_FILE = LOG_FORMAT = DEFAULT_OUTPUT_FIELDS = MAX_REQUEST_TIME = MIN_RPS = re_robots =re_generic = re_classes = None
+LOG_ROOT = LOG_FILE = LOG_FILE_TYPE = LOG_FORMAT = DEFAULT_OUTPUT_FIELDS = MAX_REQUEST_TIME = MIN_RPS = re_robots =re_generic = re_classes = None
 config = {}
 
 
 # yes, this is ugly.
-def configure(cfg='/etc/wtop.cfg'):
-    global config, LOG_ROOT, LOG_FILE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MAX_REQUEST_TIME, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
+def configure(cfg_file=None):
+    global config, LOG_ROOT, LOG_FILE, LOG_FILE_TYPE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MAX_REQUEST_TIME, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
+
+    if not cfg_file:
+        cfg_file_path = '/etc/wtop.cfg'                        # unix, osx, etc
+        if os.name != 'posix' and os.environ.has_key('HOME'):  # windows
+            cfg_file = os.path.join(os.environ.get('HOME'), 'wtop.cfg')
 
     config = ConfigParser.ConfigParser()
-    config.read(cfg)
+    config.read(cfg_file)
 
-    LOG_ROOT = config.get('main', 'log_root')
-    LOG_FILE = config.get('main', 'log_file')
-    LOG_FORMAT = config.get('main', 'log_format')
-    DEFAULT_OUTPUT_FIELDS = config.get('main', 'default_output_fields').split(',')
-    MAX_REQUEST_TIME = int(config.get('wtop', 'max_request_time'))
-    MIN_RPS = float(config.get('wtop', 'min_rps'))   
+    LOG_ROOT               = config.get('main', 'log_root')
+    LOG_FILE               = config.get('main', 'log_file')
+    LOG_FILE_TYPE          = config.get('main', 'log_file_type')
+    LOG_FORMAT             = config.get('main', 'log_format')
+    DEFAULT_OUTPUT_FIELDS  = config.get('main', 'default_output_fields').split(',')
+    MAX_REQUEST_TIME       = int(config.get('wtop', 'max_request_time'))
+    MIN_RPS                = float(config.get('wtop', 'min_rps'))   
     classes = [(o, config.get('classes', o)) for o in config.options('classes')]
 
     ## compile a godawful bunch of regexps
-    re_robots = re.compile(config.get('patterns', 'robots'), re.I)
+    re_robots  = re.compile(config.get('patterns', 'robots'), re.I)
     re_generic = re.compile(config.get('patterns', 'generic'))
     re_classes = [(x[0], re.compile(x[1], re.I)) for x in classes]
 
-    # these may be overridden later by the logrep command line program because it
-    # knows the fields the user asked for.
-    LOG_PATTERN,LOG_COLUMNS = format2regexp(config.get('main', 'log_format'))
+    if LOG_FILE_TYPE == 'apache':
+        # these may be overridden later by the logrep command line program because it
+        # knows the fields the user asked for.
+        LOG_PATTERN,LOG_COLUMNS = format2regexp(config.get('main', 'log_format'))
 
 
 def flatten(x):
@@ -138,7 +145,7 @@ def format2regexp(fmt, relevant_fields=()):
     return pat, flatten(colnames)
 
 
-
+    
 # NCSA log format is whimsical. often a 0 is printed as '-'
 def safeint(s):
     return int(s.replace('-', '0'))
@@ -260,7 +267,7 @@ def listify(x):
     return x
 
 # apply the col_fns to the records
-def field_map(log, relevant_fields):
+def field_map(log, relevant_fields, col_fns):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
     for record in log:
@@ -287,9 +294,53 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     groups     = (logpat.search(line) for line in loglines) 
     tuples     = (g.groups() for g in groups if g) 
     log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
-    log        = field_map(log, relevant_fields)
+    log        = field_map(log, relevant_fields, col_fns)
     return log
 
+
+#{'date':'2008-07-21', 'time':'18:09:00'} --> 1216663740
+def iis2unixtime(r):
+    return (((((date_ordinal(int(r['date'][0:4]), int(r['date'][5:7])) + int(r['date'][8:10]))*24) + int(r['time'][0:2]))*60 + int(r['time'][3:5]))*60) + int(r['time'][7:9])
+
+def fix_query(q):
+    if q[0] == '-': return ''
+    return '?' + q
+
+# source cols, parsing function
+iis_col_fns = [
+    (('query',),                      (lambda x: fix_query(x['query']))),
+    (('url',),                        (lambda x: x['path']+x['query'])),
+    (('ts',),                         iis2unixtime),
+    (('year','month','day'),          (lambda x: x['date'].split('-'))),
+    (('hour','minute','second'),      (lambda x: x['time'].split(':'))),
+    (('msec',),                       (lambda x: int(x['msec']))),
+    (('status',),                     (lambda x: int(x['status']))),
+    (('bytes',),                      (lambda x: int(x['bytes']))),
+    (('ipcnt',),                      (lambda x: count_ips(x['ip']))),
+    (('bot', 'botname'),              (lambda x: parse_bots(x['ua']))),
+    (('uas',),                        (lambda x: x['ua'][:30])),
+    (('class',),                      (lambda x: classify_url(x['url']))),
+    (('refdom',),                     (lambda x: domain(x['ref']))),
+]
+if geocoder: 
+    iis_col_fns.append((('country',),     (lambda x: str(geocoder.country_name_by_addr(x['ip'])))))
+    iis_col_fns.append((('cc',),          (lambda x: str(geocoder.country_code_by_addr(x['ip'])))))
+
+def iis_field_map(log, relevant_fields, col_fns):
+    # get only the column functions that are necessary
+    relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[0])), iis_col_fns)
+    for record in log:
+        for new_cols, fn in relevant_col_fns:        
+            record.update(dict(zip(new_cols, listify(fn(record)))))
+        yield record
+
+def iis_log(loglines, relevant_fields):
+    cols = ('date', 'time', 's_sitename', 's_computername', 's_ip', 'method', 'path', 'query', 'port', 'user', 'ip', 
+       'proto', 'ua', 'cookie', 'ref', 'vhost', 'status', 'substatus', 'win32_status', 'bytes_in', 'bytes', 'msec')
+    tuples     = (line.split(' ') for line in loglines)
+    log        = (dict(zip(cols,t)) for t in tuples) 
+    log        = iis_field_map(log, relevant_fields, iis_col_fns)
+    return log
 
 # this could be implemented as a -f filter, but this is faster.
 def filter_by_class(reqs, include, exclude):
