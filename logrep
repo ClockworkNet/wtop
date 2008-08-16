@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+
+import logrep
 cmd_options = """
 A handy tool for sophisticated, ad-hoc analysis of webserver logs.
 
@@ -125,8 +127,8 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
    -c CFG_FILE       Feed logrep a custom config file. By default it 
    --config          will use:
-                        /etc/wtop.cfg     (Unix, Linux, BSD, OSX, etc)
-                        %HOME%\wtop.cfg   (Windows)
+                        /etc/wtop.cfg         (Linux, BSD, OSX, etc)
+                        %%HOMEPATH%%\wtop.cfg   (Windows)
 
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
@@ -142,13 +144,14 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     are a *guess* at the country the HTTP client is from.
    
  KNOWN BUG: 
-    If you have HostnameLookups On in your Apache settings geocoding 
-    will not work.
-
-    There is an experimental option --x-host-hack that will tell logrep
-    to perform DNS lookups on hostnames. This is a hack and will
-    result in lots of network traffic. It is better to turn 
-    HostnameLookups Off, or to add the %a directive to your LogFormat.
+    Some installations of Apache have HostnameLookups defaulted to On.
+    This means that the %%h field will contain the fully-qualified domain
+    name of the client (xdsl456.foo.example.com) instead of the IP
+    address (192.168.12.34). Geocoding will work but will require a DNS
+    lookup to resolve the IP address. So using the 'cc' or 'country'
+    field in this case will generate a *LOT* of DNS traffic and can
+    hang the program. It is *strongly* recommended to explicitly set 
+    HostnameLookups Off in your Apache configuration.
 
 
  EXAMPLES:
@@ -167,19 +170,18 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
      $ logrep -o 'class,max(bytes),avg(msec)' access.log
 
 
-0.6.2   1 Sep 2008    carlos@bueno.org   http://code.google.com/p/wtop
-"""
+%s   %s    carlos@bueno.org   http://code.google.com/p/wtop
+""" % (logrep.VERSION, logrep.VERDATE)
 
-import logrep
 import cPickle, tempfile, re
 
 def runit():
     from sets import Set
     import getopt, sys, os.path, random
-    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:", (
+    opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:V", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help', 
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
-            'x-tmp-dir=', 'x-host-hack'))
+            'x-tmp-dir='))
  
     last_n                   = None
     include_classes          = []
@@ -204,9 +206,13 @@ def runit():
     grep_excludes            = []     # deprecated
     grep_filters             = []     # deprecated
 
+    stdscr = None # curses
+
     for o,v in opts:
         if o in ('-h', '-?', '--help'):
             print cmd_options; sys.exit(0)
+        if o in ('-V'):
+            print "logrep version %s, %s" %(logrep.VERSION, logrep.VERDATE); sys.exit(0)
         elif o in ('-m', '--mode'): 
             MODE = v
         elif o in ('-i', '--include'):
@@ -240,9 +246,6 @@ def runit():
             if not os.path.exists(v) or not(os.path.isdir(v)):
                 raise Exception("'%s' is not a directory" % v)
             x_tmp_file = os.path.join(v, 'logrep-%d' % random.randint(1, 9999999999999))
-
-        elif o == '--x-host-hack':
-            logrep.hostname_hack()
 
         # deprecated
         elif o == '-g': grep_filters.append(v)
@@ -340,6 +343,15 @@ def runit():
     # feed the surviving records into the proper mode function
     try:
         if MODE=='top':
+            if can_haz_curses:
+                stdscr = curses.initscr()
+                curses.noecho()
+                curses.cbreak()
+                stdscr.keypad(1)
+                stdscr.clear()
+                logrep.stdscr = stdscr
+            else:
+                logrep.warn("No curses support. Foiled again! Will print to stdout.")
             logrep.apache_top_mode(reqs)
 
         elif MODE == 'rrd':
@@ -369,7 +381,25 @@ def runit():
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
+        if stdscr:
+            curses.nocbreak() 
+            stdscr.keypad(0)
+            curses.echo()
+            curses.endwin()
 
 if __name__ == '__main__':
-#    import cProfile; cProfile.run('runit()')
-    runit()
+    can_haz_curses = False
+    try:
+        import curses
+        can_haz_curses = True
+    except:
+        pass
+
+    try:
+        runit()
+    except:
+        if stdscr:
+            curses.nocbreak() 
+            stdscr.keypad(0)
+            curses.echo()
+            curses.endwin()

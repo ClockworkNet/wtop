@@ -1,9 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+VERSION = "0.6.3"
+VERDATE = "1 Sep 2008"
+
 import os, os.path, math, fnmatch, re, time, calendar, string, socket, sys, md5, random, ConfigParser, socket
 from copy import copy
 from sets import Set
+
 geocoder = None
 try:
     import GeoIP
@@ -11,6 +15,7 @@ try:
 except:
     pass
 
+stdscr = None
 
 LOG_LEVEL          = 1        # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT      = 100000   # number of records to hold in memory before flushing to disk
@@ -38,9 +43,12 @@ def configure(cfg_file=None):
     global config, LOG_ROOT, LOG_FILE, LOG_FILE_TYPE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MAX_REQUEST_TIME, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
 
     if not cfg_file:
-        cfg_file_path = '/etc/wtop.cfg'                        # unix, osx, etc
-        if os.name != 'posix' and os.environ.has_key('HOME'):  # windows
-            cfg_file = os.path.join(os.environ.get('HOME'), 'wtop.cfg')
+        cfg_file    = '/etc/wtop.cfg'                              # unix, osx, etc
+        if os.name != 'posix' and os.environ.has_key('HOMEPATH'):  # windows
+            cfg_file = os.path.join(os.environ.get('HOMEPATH'), 'wtop.cfg')
+
+    if not os.path.exists(cfg_file):
+        raise Exception("can't read config file: '%s'" % cfg_file)
 
     config = ConfigParser.ConfigParser()
     config.read(cfg_file)
@@ -221,18 +229,17 @@ def domain(url):
     if m: return m.group(1)
     return url
 
+# accepts host or IP.
+def geocode_country(host):
+    if reip.match(host):
+        return geocoder.country_name_by_addr(host)
+    return geocoder.country_name_by_name(host)
 
-# todo.. the ':' thing is a defense against ipv6 addresses
-# also we're kind of relying on the OS to cache ip resolutions
-ipcache = {}
-def lookup_ip(rhost):
-    if not ipcache.has_key(rhost):
-        if (reip.match(rhost) or rhost[0] == ':'): return rhost
-        try:
-            ipcache[rhost] = socket.gethostbyname(rhost)
-        except:
-            ipcache[rhost] = rhost
-    return ipcache[rhost]
+def geocode_cc(host):
+    if reip.match(host):
+        return geocoder.country_code_by_addr(host)
+    return geocoder.country_code_by_name(host)
+
 
 # field massage & mapping to derived fields
 # SOURCE-FIELD, (DERIVED-FIELDS), FUNCTION
@@ -254,13 +261,8 @@ col_fns = [
 # only possible if the geocoding lib is loaded. 
 # hack: this does NOT work if HostnameLookups is on.
 if geocoder: 
-    col_fns.append(('ip', ('country',), (lambda ip: str(geocoder.country_name_by_addr(ip)))))
-    col_fns.append(('ip', ('cc',),      (lambda ip: str(geocoder.country_code_by_addr(ip)))))
-
-def hostname_hack():
-    global col_fns
-    col_fns = [('ip', ('ip',), lookup_ip)] + col_fns
-
+    col_fns.append(('ip', ('country',), (lambda ip: str(geocode_country(ip)))))
+    col_fns.append(('ip', ('cc',),      (lambda ip: str(geocode_cc(ip)))))
 
 def listify(x):
     if not hasattr(x,'__iter__'): return (x,)
@@ -284,7 +286,7 @@ def field_dependencies(requested_fields):
     deps = Set(requested_fields)
     deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
     deps = flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns)))
-    return Set(deps + requested_fields)
+    return Set(deps + list(requested_fields))
 
 
 # This, believe it or not, is the work function. It takes in raw log
@@ -297,8 +299,10 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     log        = field_map(log, relevant_fields, col_fns)
     return log
 
+##########################################################################
+## IIS-specific stuff. Can't be arsed to libraryize it.
 
-#{'date':'2008-07-21', 'time':'18:09:00'} --> 1216663740
+# {'date':'2008-07-21', 'time':'18:09:00'} --> 1216663740
 def iis2unixtime(r):
     return (((((date_ordinal(int(r['date'][0:4]), int(r['date'][5:7])) + int(r['date'][8:10]))*24) + int(r['time'][0:2]))*60 + int(r['time'][3:5]))*60) + int(r['time'][7:9])
 
@@ -306,7 +310,9 @@ def fix_query(q):
     if q[0] == '-': return ''
     return '?' + q
 
-# source cols, parsing function
+# source cols, parsing function takes whole record. makes it hard to 
+# do column dependencies, but with IIS we just split on whitespace
+# anyway.
 iis_col_fns = [
     (('query',),                      (lambda x: fix_query(x['query']))),
     (('url',),                        (lambda x: x['path']+x['query'])),
@@ -323,8 +329,8 @@ iis_col_fns = [
     (('refdom',),                     (lambda x: domain(x['ref']))),
 ]
 if geocoder: 
-    iis_col_fns.append((('country',),     (lambda x: str(geocoder.country_name_by_addr(x['ip'])))))
-    iis_col_fns.append((('cc',),          (lambda x: str(geocoder.country_code_by_addr(x['ip'])))))
+    iis_col_fns.append((('country',),     (lambda x: str(geocode_country(x['ip'])))))
+    iis_col_fns.append((('cc',),          (lambda x: str(geocode_cc(x['ip'])))))
 
 def iis_field_map(log, relevant_fields, col_fns):
     # get only the column functions that are necessary
@@ -341,6 +347,7 @@ def iis_log(loglines, relevant_fields):
     log        = (dict(zip(cols,t)) for t in tuples) 
     log        = iis_field_map(log, relevant_fields, iis_col_fns)
     return log
+##########################################################################
 
 # this could be implemented as a -f filter, but this is faster.
 def filter_by_class(reqs, include, exclude):
@@ -652,6 +659,7 @@ def tail_n(filename, num):
 def gen_top_stats(reqs, every=5):
     stats = {}
     last_print = 0
+    stats.setdefault('(all)', (rrd2(20000, 30), rrd2(2000, 30), rrd2(200, 30), rrd2(200, 30), rrd2(200, 30)))
 
     for r in reqs:
         # record a hit for the given status class (2xx, 3xx, 4xx, 5xx, slow) to generate rps stats
@@ -659,14 +667,15 @@ def gen_top_stats(reqs, every=5):
 
         if r['msec'] < MAX_REQUEST_TIME:
             stats[r['class']][(r['status']/100)-2].append(1, r['msec']) # 200 = 0, 3xx = 1, 4xx = 2, etc
+            stats['(all)'][(r['status']/100)-2].append(1, r['msec'])
 
         else: # log it in the "slow" bucket
             stats[r['class']][4].append(1, r['msec'])
+            stats['(all)'][4].append(1, r['msec'])
             
         if (time.time() - last_print) > every:
             last_print = time.time()
             yield stats
-
 
 def apache_top_mode(reqs):
     for stats in gen_top_stats(reqs, every=5):
@@ -683,7 +692,15 @@ def apache_top_mode(reqs):
             buf.append('% 34s % 9s % 5d % 4d  %s % 5d % 7s % 7s % 7s % 7s' % (
                     c, pretty_float(rps), avg, mn, sparkline, mx, x3, x4, x5, slow))
 
-        print "\n".join(buf) + "\n\n\n"
+        if stdscr:
+            top_curses_mode(stdscr, buf)
+        else:
+            print "\n".join(buf) + "\n\n\n"
+
+def top_curses_mode(stdscr, buf):
+    stdscr.clear()
+    stdscr.addstr(0, 0, "\n".join(buf))
+    stdscr.refresh()
 
 
 # for both tail and grep mode
