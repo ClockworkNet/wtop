@@ -4,7 +4,7 @@
 VERSION = "0.6.3"
 VERDATE = "1 Sep 2008"
 
-import os, os.path, math, fnmatch, re, time, calendar, string, socket, sys, md5, random, ConfigParser, socket
+import os, os.path, math, fnmatch, re, time, string, socket, sys, md5, random, ConfigParser, socket, urllib
 from copy import copy
 from sets import Set
 
@@ -38,14 +38,16 @@ LOG_ROOT = LOG_FILE = LOG_FILE_TYPE = LOG_FORMAT = DEFAULT_OUTPUT_FIELDS = MAX_R
 config = {}
 
 
+def cfg_home():
+    if (os.name != 'posix'): return sys.prefix
+    return '/etc'
+
 # yes, this is ugly.
 def configure(cfg_file=None):
     global config, LOG_ROOT, LOG_FILE, LOG_FILE_TYPE, LOG_FORMAT, DEFAULT_OUTPUT_FIELDS, MAX_REQUEST_TIME, MIN_RPS,re_robots,re_generic,re_classes,LOG_PATTERN,LOG_COLUMNS
 
     if not cfg_file:
-        cfg_file    = '/etc/wtop.cfg'                              # unix, osx, etc
-        if os.name != 'posix' and os.environ.has_key('HOMEPATH'):  # windows
-            cfg_file = os.path.join(os.environ.get('HOMEPATH'), 'wtop.cfg')
+        cfg_file = os.path.join(cfg_home(), 'wtop.cfg')
 
     if not os.path.exists(cfg_file):
         raise Exception("can't read config file: '%s'" % cfg_file)
@@ -53,9 +55,9 @@ def configure(cfg_file=None):
     config = ConfigParser.ConfigParser()
     config.read(cfg_file)
 
-    LOG_ROOT               = config.get('main', 'log_root')
-    LOG_FILE               = config.get('main', 'log_file')
     LOG_FILE_TYPE          = config.get('main', 'log_file_type')
+
+    LOG_ROOT               = config.get('main', 'log_root')
     LOG_FORMAT             = config.get('main', 'log_format')
     DEFAULT_OUTPUT_FIELDS  = config.get('main', 'default_output_fields').split(',')
     MAX_REQUEST_TIME       = int(config.get('wtop', 'max_request_time'))
@@ -70,6 +72,7 @@ def configure(cfg_file=None):
     if LOG_FILE_TYPE == 'apache':
         # these may be overridden later by the logrep command line program because it
         # knows the fields the user asked for.
+        LOG_FILE                = config.get('main', 'log_file')
         LOG_PATTERN,LOG_COLUMNS = format2regexp(config.get('main', 'log_format'))
 
 
@@ -92,8 +95,8 @@ requoted_skipped = r'[^"]*'
 
 # {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
-    'h' : ('ip',         restr, restr_skipped),  # rhost is an odd one, since the default Apache is %h
-    'a' : ('ip',         restr, restr_skipped),  # but HostnameLookups changes its content. bleh.
+    'h' : ('ip',         restr, restr_skipped),  # ip is an odd one, since the default Apache is %h but
+    'a' : ('ip',         restr, restr_skipped),  # HostnameLookups changes its content and %a is ALSO the ip. bleh.
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
     't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
@@ -288,9 +291,6 @@ def field_dependencies(requested_fields):
     deps = flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns)))
     return Set(deps + list(requested_fields))
 
-
-# This, believe it or not, is the work function. It takes in raw log
-# lines and emits a generator of mapped, derived, massaged log records.
 def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
     logpat     = re.compile(LOG_PATTERN) 
     groups     = (logpat.search(line) for line in loglines) 
@@ -344,7 +344,7 @@ def iis_log(loglines, relevant_fields):
     cols = ('date', 'time', 's_sitename', 's_computername', 's_ip', 'method', 'path', 'query', 'port', 'user', 'ip', 
        'proto', 'ua', 'cookie', 'ref', 'vhost', 'status', 'substatus', 'win32_status', 'bytes_in', 'bytes', 'msec')
     tuples     = (line.split(' ') for line in loglines)
-    log        = (dict(zip(cols,t)) for t in tuples) 
+    log        = (dict(zip(cols,urllib.unquote_plus(t))) for t in tuples) 
     log        = iis_field_map(log, relevant_fields, iis_col_fns)
     return log
 ##########################################################################
@@ -601,9 +601,13 @@ def compile_aggregates(commands):
 #
 #  There is implicit conversion of strings that look like numbers. 
 #  There is also support for = and != of multiple values:
-#    
-#  foo=(one,two,three)
-#  foo=one|two|three
+#   
+# todo: what about sets?  
+#  foo=(one,two,three)   or  foo=one|two|three
+#
+# sets can be emulated using a regexp, but it's not always the same result and is
+# probably slower. 
+#  foo~one|two|three
 #
 #
 recmp = re.compile(r'([a-z]+)(>|<|=|\!=|\!~|\~)([^,]+)')

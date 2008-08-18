@@ -1,0 +1,2 @@
+# windows shell
+python logrep %*

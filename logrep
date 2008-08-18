@@ -128,7 +128,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
    -c CFG_FILE       Feed logrep a custom config file. By default it 
    --config          will use:
                         /etc/wtop.cfg         (Linux, BSD, OSX, etc)
-                        %%HOMEPATH%%\wtop.cfg   (Windows)
+                        Python sys.prefix     (Windows)
 
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
@@ -175,6 +175,9 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 import cPickle, tempfile, re
 
+can_haz_curses = False
+stdscr = None # curses
+
 def runit():
     from sets import Set
     import getopt, sys, os.path, random
@@ -205,8 +208,6 @@ def runit():
 
     grep_excludes            = []     # deprecated
     grep_filters             = []     # deprecated
-
-    stdscr = None # curses
 
     for o,v in opts:
         if o in ('-h', '-?', '--help'):
@@ -351,7 +352,7 @@ def runit():
                 stdscr.clear()
                 logrep.stdscr = stdscr
             else:
-                logrep.warn("No curses support. Foiled again! Will print to stdout.")
+                logrep.warn("No libcurses support. Foiled again! Will print to stdout.")
             logrep.apache_top_mode(reqs)
 
         elif MODE == 'rrd':
@@ -381,14 +382,16 @@ def runit():
 
     except KeyboardInterrupt:
         sys.stderr.write("Interrupted! Mein leiben!\n")
-        if stdscr:
-            curses.nocbreak() 
-            stdscr.keypad(0)
-            curses.echo()
-            curses.endwin()
+        cleanup_curses(stdscr)
+
+def cleanup_curses(stdscr):
+    if stdscr:
+        curses.nocbreak() 
+        stdscr.keypad(0)
+        curses.echo()
+        curses.endwin()
 
 if __name__ == '__main__':
-    can_haz_curses = False
     try:
         import curses
         can_haz_curses = True
@@ -398,8 +401,4 @@ if __name__ == '__main__':
     try:
         runit()
     except:
-        if stdscr:
-            curses.nocbreak() 
-            stdscr.keypad(0)
-            curses.echo()
-            curses.endwin()
+         cleanup_curses(stdscr)

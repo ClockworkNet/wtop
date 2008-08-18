@@ -5,3 +5,5 @@ logrep.py
 setup.py
 wtop
 wtop.cfg
+logrep.bat
+wtop.bat
