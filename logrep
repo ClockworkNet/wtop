@@ -147,10 +147,10 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     Some installations of Apache have HostnameLookups defaulted to On.
     This means that the %%h field will contain the fully-qualified domain
     name of the client (xdsl456.foo.example.com) instead of the IP
-    address (192.168.12.34). Geocoding will work but will require a DNS
-    lookup to resolve the IP address. So using the 'cc' or 'country'
+    address (123.1.2.3). Geocoding will work but will require a DNS
+    lookup to resolve the IP address. Using the 'cc' or 'country'
     field in this case will generate a *LOT* of DNS traffic and can
-    hang the program. It is *strongly* recommended to explicitly set 
+    hang the program. It is recommended to explicitly set 
     HostnameLookups Off in your Apache configuration.
 
 
