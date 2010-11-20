@@ -1,12 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-VERSION = "0.6.3"
-VERDATE = "1 Sep 2008"
+VERSION = "0.6.5"
+VERDATE = "20 Nov 2010"
 
-import os, os.path, math, fnmatch, re, time, string, socket, sys, md5, random, ConfigParser, socket, urllib
+import os, os.path, math, fnmatch, re, time, string, socket, sys, random, ConfigParser, socket, urllib
 from copy import copy
-from sets import Set
+from hashlib import md5 as md5
+
+try:
+    set
+except NameError:
+    from sets import Set as set
 
 geocoder = None
 try:
@@ -15,14 +20,12 @@ try:
 except:
     pass
 
-stdscr = None
-
 LOG_LEVEL          = 1        # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT      = 100000   # number of records to hold in memory before flushing to disk
 SORT_BUFFER_LENGTH = 100000   # number of records to hold before triggering a sort & prune operation
 PROGRESS_INTERVAL  = 20000    # ie warn('processed X lines...')
 
-# randomize the disc sync and sort_buffer len to reduce the 
+# randomize the disc sync and sort_buffer len to reduce the
 # chance of thrashing the disks in mutlicore mode.
 DISC_SYNC_CNT      += (DISC_SYNC_CNT * 0.08 * random.random())
 SORT_BUFFER_LENGTH += (SORT_BUFFER_LENGTH * 0.08 * random.random())
@@ -61,7 +64,7 @@ def configure(cfg_file=None):
     LOG_FORMAT             = config.get('main', 'log_format')
     DEFAULT_OUTPUT_FIELDS  = config.get('main', 'default_output_fields').split(',')
     MAX_REQUEST_TIME       = int(config.get('wtop', 'max_request_time'))
-    MIN_RPS                = float(config.get('wtop', 'min_rps'))   
+    MIN_RPS                = float(config.get('wtop', 'min_rps'))
     classes = [(o, config.get('classes', o)) for o in config.options('classes')]
 
     ## compile a godawful bunch of regexps
@@ -106,15 +109,15 @@ LOG_DIRECTIVES = {
     'q' : ('query',      restr, restr_skipped),
     'D' : ('msec',       restr, restr_skipped),
     's' : ('status',     restr, restr_skipped),
-    'b' : ('bytes',      restr, restr_skipped), 
+    'b' : ('bytes',      restr, restr_skipped),
     'B' : ('bytes',      restr, restr_skipped), # NB: may change to 'bytes_out'
     'I' : ('bytes_in',   restr, restr_skipped),
     'v' : ('domain',     restr, restr_skipped), # Host header
     'V' : ('domain',     restr, restr_skipped), # actual vhost. May clobber %v
     'p' : ('port',       restr, restr_skipped),
     '{ratio}n' : ('ratio', requoted, requoted_skipped), #todo: need generic %{foo}X parsing?
-    '{host}i' : ('host', requoted, requoted_skipped), 
-    '{referer}i' : ('ref', requoted, requoted_skipped), 
+    '{host}i' : ('host', requoted, requoted_skipped),
+    '{referer}i' : ('ref', requoted, requoted_skipped),
     '{user-agent}i' : ('ua', requoted, requoted_skipped)
 }
 
@@ -125,7 +128,7 @@ def lcase(s):
     return s
 
 # given an Apache LogFormat string and an optional list of relevant fields,
-# returns a regular expression that will parse the equivalent log line and 
+# returns a regular expression that will parse the equivalent log line and
 # extract the necessary fields.
 def format2regexp(fmt, relevant_fields=()):
     red = re.compile('%[\>\<\!,\d]*([\}\{\w\-]+)')
@@ -156,13 +159,12 @@ def format2regexp(fmt, relevant_fields=()):
     return pat, flatten(colnames)
 
 
-    
 # NCSA log format is whimsical. often a 0 is printed as '-'
 def safeint(s):
     return int(s.replace('-', '0'))
 
 ### timestamp parsing
-# This method is about 500% faster than the regex/strptime/timegm way. 
+# This method is about 500% faster than the regex/strptime/timegm way.
 months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
 
 # "There are 40 time zones instead of 24 as popularly believed..."
@@ -261,9 +263,9 @@ col_fns = [
     ('ref',        ('refdom',),  domain),
 ]
 
-# only possible if the geocoding lib is loaded. 
+# only possible if the geocoding lib is loaded.
 # hack: this does NOT work if HostnameLookups is on.
-if geocoder: 
+if geocoder:
     col_fns.append(('ip', ('country',), (lambda ip: str(geocode_country(ip)))))
     col_fns.append(('ip', ('cc',),      (lambda ip: str(geocode_cc(ip)))))
 
@@ -276,26 +278,26 @@ def field_map(log, relevant_fields, col_fns):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
     for record in log:
-        for source_col, new_cols, fn in relevant_col_fns:        
+        for source_col, new_cols, fn in relevant_col_fns:
             record.update(dict(zip(new_cols, listify(fn(record[source_col])))))
         yield record
 
 # given a list of fields the user has asked for, look at the col_fns
-# structure to see what parent fields they might depend on. for example, 
+# structure to see what parent fields they might depend on. for example,
 # 'year' depends on 'timestamp'. The idea is to only extract the fields
 # from the raw log line that we actually need.
 # two levels is ok for now and I'm too tired to write something recursive
 def field_dependencies(requested_fields):
-    deps = Set(requested_fields)
-    deps = Set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
+    deps = set(requested_fields)
+    deps = set(flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns))))
     deps = flatten(map((lambda f: f[0:2]), filter((lambda f: deps.intersection(f[1])), col_fns)))
-    return Set(deps + list(requested_fields))
+    return set(deps + list(requested_fields))
 
 def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
-    logpat     = re.compile(LOG_PATTERN) 
-    groups     = (logpat.search(line) for line in loglines) 
-    tuples     = (g.groups() for g in groups if g) 
-    log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples) 
+    logpat     = re.compile(LOG_PATTERN)
+    groups     = (logpat.search(line) for line in loglines)
+    tuples     = (g.groups() for g in groups if g)
+    log        = (dict(zip(LOG_COLUMNS,t)) for t in tuples)
     log        = field_map(log, relevant_fields, col_fns)
     return log
 
@@ -310,7 +312,7 @@ def fix_query(q):
     if q[0] == '-': return ''
     return '?' + q
 
-# source cols, parsing function takes whole record. makes it hard to 
+# source cols, parsing function takes whole record. makes it hard to
 # do column dependencies, but with IIS we just split on whitespace
 # anyway.
 iis_col_fns = [
@@ -328,7 +330,7 @@ iis_col_fns = [
     (('class',),                      (lambda x: classify_url(x['url']))),
     (('refdom',),                     (lambda x: domain(x['ref']))),
 ]
-if geocoder: 
+if geocoder:
     iis_col_fns.append((('country',),     (lambda x: str(geocode_country(x['ip'])))))
     iis_col_fns.append((('cc',),          (lambda x: str(geocode_cc(x['ip'])))))
 
@@ -336,15 +338,15 @@ def iis_field_map(log, relevant_fields, col_fns):
     # get only the column functions that are necessary
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[0])), iis_col_fns)
     for record in log:
-        for new_cols, fn in relevant_col_fns:        
+        for new_cols, fn in relevant_col_fns:
             record.update(dict(zip(new_cols, listify(fn(record)))))
         yield record
 
 def iis_log(loglines, relevant_fields):
-    cols = ('date', 'time', 's_sitename', 's_computername', 's_ip', 'method', 'path', 'query', 'port', 'user', 'ip', 
+    cols = ('date', 'time', 's_sitename', 's_computername', 's_ip', 'method', 'path', 'query', 'port', 'user', 'ip',
        'proto', 'ua', 'cookie', 'ref', 'vhost', 'status', 'substatus', 'win32_status', 'bytes_in', 'bytes', 'msec')
     tuples     = (line.split(' ') for line in loglines)
-    log        = (dict(zip(cols,urllib.unquote_plus(t))) for t in tuples) 
+    log        = (dict(zip(cols,urllib.unquote_plus(t))) for t in tuples)
     log        = iis_field_map(log, relevant_fields, iis_col_fns)
     return log
 ##########################################################################
@@ -363,11 +365,11 @@ def logs_for_date(dt):
 def todays_logs():
     gmt_midnight = int(time.time() / 86400) * 86400
     r_file = "%s%s.%d" % (LOG_ROOT, LOG_FILE, gmt_midnight)
-    if os.path.isfile(r_file): 
+    if os.path.isfile(r_file):
         return [r_file]
     return [LOG_ROOT + LOG_FILE]
 
-def yesterdays_logs(): 
+def yesterdays_logs():
     gmt_yesterday = (int(time.time() / 86400) - 1) * 86400
     return ["%s%s.%d" % (LOG_ROOT, LOG_FILE, gmt_yesterday)]
 
@@ -378,62 +380,62 @@ def latest_log():
 # these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1, YYYYMMDD.log.2, etc
 # def logs_for_date(dt):
 #     return sorted(gen_find(dt + '*.log*',LOG_ROOT), key=(lambda x: safeint(x.split('.')[-1])))
-# def todays_logs(): 
+# def todays_logs():
 #     return logs_for_date(time.strftime('%Y%m%d', time.localtime(time.time())))
-# def yesterdays_logs(): 
+# def yesterdays_logs():
 #     return logs_for_date(time.strftime('%Y%m%d', time.localtime(time.time()-86400)))
 #def latest_log():
 #    return todays_logs()[-1]
 
 
 ## apache log funcs from David Beazley's generators talk
-def gen_find(filepat,top): 
-    for path, dirlist, filelist in os.walk(top): 
-        for name in fnmatch.filter(filelist,filepat): 
-            yield os.path.join(path,name)  
+def gen_find(filepat,top):
+    for path, dirlist, filelist in os.walk(top):
+        for name in fnmatch.filter(filelist,filepat):
+            yield os.path.join(path,name)
 
-def gen_open(filenames): 
-    for name in filenames: 
+def gen_open(filenames):
+    for name in filenames:
         handle = open(name)
         yield handle
         handle.close()
 
-def gen_cat(sources): 
-    for s in sources: 
-        for item in s: 
-            yield item 
+def gen_cat(sources):
+    for s in sources:
+        for item in s:
+            yield item
 
-def gen_grep(pat, lines): 
-    patc = re.compile(pat) 
-    for line in lines: 
-        if patc.search(line): yield line 
+def gen_grep(pat, lines):
+    patc = re.compile(pat)
+    for line in lines:
+        if patc.search(line): yield line
 
-def lines_from_dir(filepat, dirname): 
-    names   = gen_find(filepat,dirname) 
-    files   = gen_open(names) 
-    lines   = gen_cat(files) 
-    return lines 
+def lines_from_dir(filepat, dirname):
+    names   = gen_find(filepat,dirname)
+    files   = gen_open(names)
+    lines   = gen_cat(files)
+    return lines
 
 def follow(thefile):
     last_seen = time.time()
-    thefile.seek(0,2)      # Go to the end of the file 
-    while True: 
-         line = thefile.readline() 
+    thefile.seek(0,2)      # Go to the end of the file
+    while True:
+         line = thefile.readline()
          if not line:
              # hack: if the log is silent for awhile, it may have been rotated.
              if time.time() - last_seen > 30:
                  logfile = latest_log()[0] # todo: broken & stupid. necessary for netscaler
                  warn('no input for 30 seconds. reopening (%s)' % logfile)
                  thefile.close()
-                 thefile = open(logfile) 
+                 thefile = open(logfile)
                  thefile.seek(0,2)
                  last_seen = time.time()   # so we don't start going nuts on the file.
 
-             time.sleep(0.3)    # Sleep briefly 
+             time.sleep(0.3)    # Sleep briefly
              continue
 
          last_seen = time.time()
-         yield line 
+         yield line
 
 
 class circular_buffer(list):
@@ -442,7 +444,7 @@ class circular_buffer(list):
         self += [initval] * length
         self.length = length    # actually maxlength
         self.cnt = 0            # real length
-        
+
     def append(self, item):
         self.pointer %= self.length
         self.__setitem__(self.pointer, item)
@@ -494,7 +496,7 @@ class rrd2:
             msecs.append(item[2])
 
         if not cnt: return (0,0,0,0,'',0,0)
-        
+
         rps = cnt / mwindow
         msec_avg = msec_tot / float(cnt)
         msec_stddev = stddev(msecs, msec_avg)
@@ -508,9 +510,9 @@ def stddev(lst, avg):
     return math.sqrt(abs(sumdist / lst_len)) / avg
 
 
-    
 
-# given a list of numbers, generates a very sketchy 
+
+# given a list of numbers, generates a very sketchy
 # ascii graph of the distribution.
 sp_chars = (' ', '.','-','o','O','@','#')
 #sp_chars = ('∙', '*', '⋆', '✶', '✸', '✦', '❖')
@@ -532,7 +534,7 @@ def hist_sparkline(lst, mn, mx):
     return ''.join([ sp_chars[int(round(cnts.get(x, 0)/float(tot) * (sp_steps-1)))]  for x in range(tiles)])
 
 # 8.5444    -->  "8.54"
-# 0.99222   -->  ".99"    
+# 0.99222   -->  ".99"
 # 0.0000001 -->  "--"
 def pretty_float(f):
     if f < 0.01: return '--'
@@ -595,18 +597,18 @@ def compile_aggregates(commands):
 #  >, < =, !=    comparison
 #  ~, !~         regexp, not regexp
 #
-#  Example:  "foo~^ba+,baz>100"    
-#   This returns true if the foo key matches "ba", "baa", "bar" but not "abad" 
+#  Example:  "foo~^ba+,baz>100"
+#   This returns true if the foo key matches "ba", "baa", "bar" but not "abad"
 #   AND if the value of the baz key is greater than 100.
 #
-#  There is implicit conversion of strings that look like numbers. 
+#  There is implicit conversion of strings that look like numbers.
 #  There is also support for = and != of multiple values:
-#   
-# todo: what about sets?  
+#
+# todo: what about sets?
 #  foo=(one,two,three)   or  foo=one|two|three
 #
 # sets can be emulated using a regexp, but it's not always the same result and is
-# probably slower. 
+# probably slower.
 #  foo~one|two|three
 #
 #
@@ -617,7 +619,7 @@ def compile_filter(commands):
     cmp_operators = {'<': -1, '>': 1, '=': 0, '!=': 0}
     fields = [x[0] for x in conditions]
 
-    # casts the "value" of the conditions to the same type as the given 
+    # casts the "value" of the conditions to the same type as the given
     # example. "100" becomes 100 if the example value is numeric. If the
     # operator is "~", the condition is compiled to a regular expression.
     def typecast(example):
@@ -630,10 +632,10 @@ def compile_filter(commands):
                 ret.append((key,op,castfns[key](value)))
         return ret
 
-    # lazy eval of conditions. 
+    # lazy eval of conditions.
     def predicate(obj, conditions):
         for key, op, value in conditions:
-            if op[-1] == '~': 
+            if op[-1] == '~':
                 if (not value.search(str(obj[key]))) != (op == '!~'):
                     return False
             elif (cmp_operators[op] == cmp(obj[key], value)) == (op == '!='):
@@ -648,7 +650,7 @@ def compile_filter(commands):
             yield first
 
         for item in lst:
-            if predicate(item, conditions): 
+            if predicate(item, conditions):
                 yield item
 
     return fn, fields
@@ -676,7 +678,7 @@ def gen_top_stats(reqs, every=5):
         else: # log it in the "slow" bucket
             stats[r['class']][4].append(1, r['msec'])
             stats['(all)'][4].append(1, r['msec'])
-            
+
         if (time.time() - last_print) > every:
             last_print = time.time()
             yield stats
@@ -690,22 +692,13 @@ def apache_top_mode(reqs):
         for c in sorted(stats.keys()):
             # detailed stats for "200 OK" requests, simple averages for the rest
             rps, avg, cnt, stdev, sparkline, mn, mx = stats[c][0].stats()
-            if rps < MIN_RPS or cnt < 2: 
+            if rps < MIN_RPS or cnt < 2:
                 continue
             x3, x4, x5, slow = map(lambda x: pretty_float(x.avg()), stats[c][1:])
             buf.append('% 34s % 9s % 5d % 4d  %s % 5d % 7s % 7s % 7s % 7s' % (
                     c, pretty_float(rps), avg, mn, sparkline, mx, x3, x4, x5, slow))
 
-        if stdscr:
-            top_curses_mode(stdscr, buf)
-        else:
-            print "\n".join(buf) + "\n\n\n"
-
-def top_curses_mode(stdscr, buf):
-    stdscr.clear()
-    stdscr.addstr(0, 0, "\n".join(buf))
-    stdscr.refresh()
-
+        print "\n".join(buf) + "\n\n\n"
 
 # for both tail and grep mode
 def print_mode(reqs, fields):
@@ -715,8 +708,8 @@ def print_mode(reqs, fields):
 
 # compact ids for a dict, given a list of keys to use as the unique identifier
 # {'foo':bar,'a':'b'}, ('foo'), 6   -->  "b\315\267^O\371"  (first 6 bytes of md5('bar'))
-# HACK: the default byte_len of 6 (48 bits) should be fine for most applications. If you 
-# expect to process more than 10 to 15 million aggregate records (eg, grouping by url 
+# HACK: the default byte_len of 6 (48 bits) should be fine for most applications. If you
+# expect to process more than 10 to 15 million aggregate records (eg, grouping by url
 # or user-agent over millions of logs) AND you need absolute accuracy, by all means
 # increase the byte_len default.
 def id_from_dict_keys(h, keys, byte_len=6):
@@ -771,12 +764,12 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
     agg_fns = {
         None:    (lambda i, r, field, table, key: r[field]),
         'count': (lambda i, r, field, table, key: table[key][0]), # count(*) is always just copied from col 0
-        'sum':   (lambda i, r, field, table, key: table[key][i] + r[field]), 
-        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i])), 
-        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i])), 
+        'sum':   (lambda i, r, field, table, key: table[key][i] + r[field]),
+        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i])),
+        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i])),
         'avg':   (lambda i, r, field, table, key: ((table[key][i] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
-        'var':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))), 
-        'dev':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))), 
+        'var':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))),
+        'dev':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))),
     }
 
     # post-processing for more complex aggregates
@@ -794,7 +787,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
 
     for r in reqs:
         cnt += 1
-        if cnt % PROGRESS_INTERVAL == 0: 
+        if cnt % PROGRESS_INTERVAL == 0:
             t = time.time() - lastt
             lastt = time.time()
             warn ('%0.2f processed %d records...' % (t, cnt))
@@ -817,8 +810,8 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
             warn ('sync()ing records to disk...')
             table.sync()
             warn ('done.')
-    
-    if limit: 
+
+    if limit:
         records = running_list
     else:
         records = table
@@ -855,7 +848,7 @@ from subprocess import call
 def create_rrd(klass, ts, step=5):
     print "creating rrd", klass, ts
     rowcnt = 86400 / step
-    call(["rrdtool",  
+    call(["rrdtool",
         'create',
         '%s.rrd' % klass,
         '--step','%d' % step,
@@ -877,8 +870,8 @@ def create_graph(klass, ts, length, rpslim, mseclim, type="brief"):
     common = [
           '-s', str(ts-length), '-e', str(ts),
           '--color', 'BACK#ffffff00', '--color', 'SHADEA#ffffff00', '--color', 'SHADEB#ffffff00',
-          '--color', 'CANVAS#eeeeee00', '--color', 'GRID#eeeeee00', 
-          '--color', 'MGRID#eeeeee00', 
+          '--color', 'CANVAS#eeeeee00', '--color', 'GRID#eeeeee00',
+          '--color', 'MGRID#eeeeee00',
           '--color', 'AXIS#999999', '--color', 'ARROW#999999',
           '-w', '300','--units-length','4', '--no-legend',
           '--slope-mode']
@@ -889,8 +882,8 @@ def create_graph(klass, ts, length, rpslim, mseclim, type="brief"):
         common += ['-h', '40', '-w', '750']
 
     # requests / second graph
-    call(['rrdtool', 'graph', 
-          '%s.%s.rps.png'%(klass,type)] + common + [ 
+    call(['rrdtool', 'graph',
+          '%s.%s.rps.png'%(klass,type)] + common + [
           "DEF:OK=%s.rrd:rps2xx:AVERAGE" % klass,
           "AREA:OK#44ee00:OK",
           "DEF:REDIRECT=%s.rrd:rps3xx:AVERAGE"  % klass,
@@ -903,10 +896,10 @@ def create_graph(klass, ts, length, rpslim, mseclim, type="brief"):
     # response time graph
     call(['rrdtool', 'graph',
           '%s.%s.msec.png'%(klass,type)] + common + [
-          '--upper-limit', str(mseclim), '--rigid', 
+          '--upper-limit', str(mseclim), '--rigid',
           '--y-grid','%s:%s' % (mseclim,mseclim),
-          '--units-exponent','0',  
-          '--slope-mode', 
+          '--units-exponent','0',
+          '--slope-mode',
           "DEF:MSEC=%s.rrd:msec:AVERAGE" % klass,
           "AREA:MSEC#8888cc:MSEC"])
 
@@ -924,7 +917,7 @@ def create_rrd_page(classes, rpslim, mseclim):
         </td></tr>
     """)
 
-    buf.append(""" 
+    buf.append("""
         <tr><td>&nbsp;</td><td align="center"><b>Traffic Volume (req/sec)</b></td><td align="center"><b>Avg Response Time (msec)</b></td></tr>
     """)
 
@@ -957,7 +950,7 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100, do_hist
 
     for r in reqs:
         if not cur_time: cur_time = r['ts']
-        
+
         # init the pseudo-class 'all'
         if not classes.has_key('all'):
             classes['all'] = True
@@ -975,17 +968,17 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100, do_hist
             print cur_time
             for k in classes:
                 if not stats.has_key(k):
-                    continue 
+                    continue
                 v = stats[k]
 
                 if do_hist:
                     histogram = normalize(v['hist'], v['count'][0], hist_scale)
 
                 call(["rrdtool", "update", "%s.rrd"% k, "%d:%s:%s:%s:%s:%s" % (
-                    r['ts'], 
-                    int(v['count'][0]/float(step)), 
+                    r['ts'],
+                    int(v['count'][0]/float(step)),
                     int(v['count'][1]/float(step)),
-                    int(v['count'][2]/float(step)), 
+                    int(v['count'][2]/float(step)),
                     int(v['count'][3]/float(step)),
                     v['total_msec'] / (v['count'][0]+1))])
 
@@ -1000,7 +993,7 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100, do_hist
             if r['status'] < 299:
                 stats[r['class']]['total_msec'] += r['msec']
                 stats['all']['total_msec'] += r['msec']
-                
+
                 if do_hist:
                     stats[r['class']]['hist'][min(min(r['msec'], msec_max)/(msec_max/hist_steps), hist_steps-1)] += 1
 
@@ -1010,7 +1003,7 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100, do_hist
 
 
             create_graph('all', cur_time, 43200, rpslim, mseclim, 'halfday')
-            
+
             for k in classes.keys():
                 create_graph(k, cur_time, 1800, rpslim, mseclim, 'brief')
             create_rrd_page(sorted(classes.keys()), rpslim, mseclim)
