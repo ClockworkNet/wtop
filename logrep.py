@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-VERSION = "0.6.5"
+VERSION = "0.6.6"
 VERDATE = "20 Nov 2010"
 
 import os, os.path, math, fnmatch, re, time, string, socket, sys, random, ConfigParser, socket, urllib
@@ -204,6 +204,8 @@ def count_ips(ip):
 # equivalent is a float of S.MMM, so do the Right Thing.
 # returns *milli*seconds
 def fix_usec(s):
+    if not s or s == None:
+        return 0
     if s.find('.') > -1:
         return int(float(s) * 1000)
     else:
@@ -279,7 +281,7 @@ def field_map(log, relevant_fields, col_fns):
     relevant_col_fns = filter((lambda f: relevant_fields.intersection(f[1])), col_fns)
     for record in log:
         for source_col, new_cols, fn in relevant_col_fns:
-            record.update(dict(zip(new_cols, listify(fn(record[source_col])))))
+            record.update(dict(zip(new_cols, listify(fn(record.get(source_col, ''))))))
         yield record
 
 # given a list of fields the user has asked for, look at the col_fns
