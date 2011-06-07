@@ -100,6 +100,7 @@ requoted_skipped = r'[^"]*'
 LOG_DIRECTIVES = {
     'h' : ('ip',         restr, restr_skipped),  # ip is an odd one, since the default Apache is %h but
     'a' : ('ip',         restr, restr_skipped),  # HostnameLookups changes its content and %a is ALSO the ip. bleh.
+    'A' : ('lip',        restr, restr_skipped),  # server (local) IP
     'l' : ('auth',       restr, restr_skipped),
     'u' : ('username',   restr, restr_skipped),
     't' : ('timestamp',  r'\[?(\S+(?:\s+[\-\+]\d+)?)\]?', r'\[?\S+(?:\s+[\-\+]\d+)?\]?'),
@@ -230,7 +231,7 @@ def classify_url(url):
 # return domain part of a URL.
 # 'http://www.foo.com/bar.html'                 --> 'www.foo.com'
 # 'example.com:8800/redirect.php?url=blah.html' --> 'example.com:8800'
-re_domain = re.compile(r'(?:http://)?([^/]+)')
+re_domain = re.compile(r'(?:https?://)?([^/]+)')
 def domain(url):
     m = re_domain.match(url)
     if m: return m.group(1)
@@ -715,7 +716,7 @@ def print_mode(reqs, fields):
 # or user-agent over millions of logs) AND you need absolute accuracy, by all means
 # increase the byte_len default.
 def id_from_dict_keys(h, keys, byte_len=6):
-    return md5.md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
+    return md5(','.join([str(h[k]) for k in keys])).digest()[0:byte_len]
 
 
 def keyfns(order_by):

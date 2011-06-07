@@ -40,6 +40,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      AVAILABLE FIELDS:
                         msec       millisecond response time
                         ip         The IP address of the client
+                        lip        The IP address of the server
                         url        The path of the request, eg '/home'
                         ref        'Referer' header
                         refdom     domain part of the 'Referer' header
