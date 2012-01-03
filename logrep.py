@@ -170,7 +170,7 @@ def safeint(s):
 ## http://docs.python.org/library/time.html
 ## GRRRR.
 def tz2secs(s):
-  plusminus = -1 if s[0] == '-' else 1
+  plusminus = 1 if s[0] == '-' else -1
   return ((int(s[1:3])*3600) + (int(s[3:5]))*60) * plusminus
 
 # 21/Jul/2008:18:09:00 -0700   -->   1216688940
