@@ -186,7 +186,7 @@ def runit():
     opts, args = getopt.getopt(sys.argv[1:], "q?hHRdm:i:e:o:g:v:l:f:c:s:V", (
             'output=', 'filter=', 'sort=', 'quiet', 'config=', 'last=', 'help',
             'humans-only', 'robots-only', 'mode=', 'filter=', 'include=', 'exclude=',
-            'x-tmp-dir='))
+            'x-tmp-dir=', 'version'))
 
     last_n                   = None
     include_classes          = []
@@ -215,7 +215,7 @@ def runit():
         if o in ('-h', '-?', '--help'):
             print cmd_options; sys.exit(0)
         if o in ('-V'):
-            print "logrep version %s, %s" %(logrep.VERSION, logrep.VERDATE); sys.exit(0)
+            print logrep.VERSION; sys.exit(0)
         elif o in ('-m', '--mode'):
             MODE = v
         elif o in ('-i', '--include'):

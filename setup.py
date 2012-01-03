@@ -1,6 +1,6 @@
-import logrep 
+import logrep
 
-## For historical reasons this package is called "wtop" even though 
+## For historical reasons this package is called "wtop" even though
 ## wtop is a paper-thin shell on a special case of logrep.
 
 from distutils.core import setup

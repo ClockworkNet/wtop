@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-VERSION = "0.6.7"
-VERDATE = "6 Jun 2011"
+VERSION = "0.6.8"
+VERDATE = "3 Jan 2012"
 
-import os, os.path, math, fnmatch, re, time, string, socket, sys, random, ConfigParser, socket, urllib
+import os, os.path, math, fnmatch, re, time, calendar, string, socket, sys, random, ConfigParser, socket, urllib
 from copy import copy
 from hashlib import md5 as md5
 
@@ -165,22 +165,18 @@ def safeint(s):
     return int(s.replace('-', '0'))
 
 ### timestamp parsing
-# This method is about 500% faster than the regex/strptime/timegm way.
-months = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4, 'May':5, 'Jun':6, 'Jul':7, 'Aug':8, 'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12}
-
-# "There are 40 time zones instead of 24 as popularly believed..."
-# http://en.wikipedia.org/wiki/List_of_time_zones
-tzs = {'+0000': 0, '+0100': -3600, '+0200': -7200, '+0300': -10800, '+0330': -12600, '+0400': -14400, '+0430': -16200, '+0500': -18000, '+0530': -19800, '+0545': -20700, '+0600': -21600, '+0630': -23400, '+0700': -25200, '+0800': -28800, '+0845': -31500, '+0900': -32400, '+0930': -34200, '+1000': -36000, '+1030': -37800, '+1100': -39600, '+1130': -41400, '+1200': -43200, '+1245': -45900, '+1300': -46800, '+1400': -50400, '-0100': 3600, '-0200': 7200, '-0300': 10800, '-0330': 12600, '-0400': 14400, '-0430': 12600, '-0500': 18000, '-0600': 21600, '-0700': 25200, '-0800': 28800, '-0900': 32400, '-0930': 34200, '-1000': 36000, '-1100': 39600, '-1200': 43200}
-
-# number of days from given year/month and 1 Jan 1970
-# hack: only accurate from 1970 to 2099
-month_offset = (0,31,59,90,120,151,181,212,243,273,304,334)
-def date_ordinal(y, m):
-    return ((y - 1970) * 365) + (y / 4) - 493 + month_offset[m-1]
+## "...the %z escape that expands to the preferred hour/minute
+##     offset is not supported by all ANSI C libraries..."
+## http://docs.python.org/library/time.html
+## GRRRR.
+def tz2secs(s):
+  plusminus = -1 if s[0] == '-' else 1
+  return ((int(s[1:3])*3600) + (int(s[3:5]))*60) * plusminus
 
 # 21/Jul/2008:18:09:00 -0700   -->   1216688940
+# 03/Jan/2012:12:11:24 +0000   -->   1325592684
 def apache2unixtime(t):
-    return (((((date_ordinal(int(t[7:11]), months[t[3:6]]) + int(t[0:2]))*24) + int(t[12:14]))*60 + int(t[15:17]))*60) + int(t[18:20]) + tzs.get(t[21:26], 0)
+    return calendar.timegm(time.strptime(t[:20]+' GMT', '%d/%b/%Y:%H:%M:%S %Z')) + tz2secs(t[21:26])
 
 # 21/Jul/2008:18:09:00 -0700   -->   (2008, 7, 21, 18, 9)
 def apache2dateparts(t):
@@ -190,6 +186,7 @@ def apache2dateparts(t):
 # keeps a count of seen remote IP addresses. returns
 # a value for the ipcnt field.
 # nb: possbile memory problem with > 10M records
+# derp. IPv6?
 reip = re.compile(r'^\d+\.\d+\.\d+\.\d+$')
 ipcnts = {}
 def count_ips(ip):
@@ -307,9 +304,9 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
 ##########################################################################
 ## IIS-specific stuff. Can't be arsed to libraryize it.
 
-# {'date':'2008-07-21', 'time':'18:09:00'} --> 1216663740
+# {'date':'2008-07-21', 'time':'18:09:00'} --> 1216688940
 def iis2unixtime(r):
-    return (((((date_ordinal(int(r['date'][0:4]), int(r['date'][5:7])) + int(r['date'][8:10]))*24) + int(r['time'][0:2]))*60 + int(r['time'][3:5]))*60) + int(r['time'][7:9])
+    return int(time.mktime(time.strptime(r['date']+' '+r['time'], '%Y-%m-%d %H:%M:%S')))
 
 def fix_query(q):
     if q[0] == '-': return ''
