@@ -108,7 +108,6 @@ LOG_DIRECTIVES = {
     'm' : ('method',     restr, restr_skipped),
     'D' : ('msec',       restr, restr_skipped),
     'q' : ('query',      restr, restr_skipped),
-    'D' : ('msec',       restr, restr_skipped),
     's' : ('status',     restr, restr_skipped),
     'b' : ('bytes',      restr, restr_skipped),
     'B' : ('bytes',      restr, restr_skipped), # NB: may change to 'bytes_out'
