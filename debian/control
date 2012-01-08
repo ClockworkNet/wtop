@@ -1,0 +1,12 @@
+Source: wtop
+Section: misc
+Priority: extra
+Maintainer: Ben Beuchler <insyte@clockwork.net>
+Build-Depends: cdbs (>= 0.4.49), debhelper (>= 5), python (>=2.4), python-support
+Standards-Version: 3.7.2
+
+Package: wtop
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: "top" for Apache, plus powerful log grepping
+ "top" for Apache and other webservers, plus powerful log grepping

@@ -1,0 +1,14 @@
+wtop (0.6.8-1) hardy; urgency=low
+
+  * Updated to 0.6.8
+  * Now maintained as wtop-clockwork on GitHub
+
+ -- Tim Baldoni <tim@clockwork.net>  Thu, 08 Jan 2012 10:31:54 -0600
+
+wtop (0.6.7-1) hardy; urgency=low
+
+  * Packaged for Clockwork.
+  * Add support for %F (mod-log-firstbyte) field.
+
+ -- Ben Beuchler <insyte@clockwork.net>  Thu, 21 Jul 2011 16:30:13 -0500
+
