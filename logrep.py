@@ -107,6 +107,7 @@ LOG_DIRECTIVES = {
     'r' : ('request',    r'(\S+ \S+ \S+)', r'\S+ \S+ \S+'),
     'm' : ('method',     restr, restr_skipped),
     'D' : ('msec',       restr, restr_skipped),
+    'F' : ('fbmsec',     restr, restr_skipped),
     'q' : ('query',      restr, restr_skipped),
     's' : ('status',     restr, restr_skipped),
     'b' : ('bytes',      restr, restr_skipped),
@@ -250,6 +251,7 @@ def geocode_cc(host):
 # note that 'class' derives from 'url', which derives from 'request'
 col_fns = [
     ('msec',       ('msec',),    fix_usec),
+    ('fbmsec',     ('fbmsec',),  fix_usec),
     ('status',     ('status',),  int),
     ('bytes',      ('bytes',),   safeint),
     ('ip',         ('ipcnt',),   count_ips),

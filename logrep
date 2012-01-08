@@ -39,6 +39,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
                      AVAILABLE FIELDS:
                         msec       millisecond response time
+                        fbmsec     millisecond response time (first byte)
                         ip         The IP address of the client
                         lip        The IP address of the server
                         url        The path of the request, eg '/home'
