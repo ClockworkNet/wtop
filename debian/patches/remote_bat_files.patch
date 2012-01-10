@@ -1,0 +1,13 @@
+Binary files wtop-clockwork/.git/index and wtop-clockwork.new/.git/index differ
+diff -Nur -x '*.orig' -x '*~' wtop-clockwork/setup.py wtop-clockwork.new/setup.py
+--- wtop-clockwork/setup.py	2012-01-10 15:18:29.000000000 -0600
++++ wtop-clockwork.new/setup.py	2012-01-10 15:31:51.000000000 -0600
+@@ -13,7 +13,7 @@
+     version=logrep.VERSION,
+ 
+     data_files=[(cfg_file_path, ['wtop.cfg'])],
+-    scripts=['wtop', 'logrep', 'wtop.bat', 'logrep.bat'],
++    scripts=['wtop', 'logrep'],
+     py_modules=['logrep'],
+ 
+     url="http://code.google.com/p/wtop/",
