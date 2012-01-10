@@ -1,8 +1,6 @@
 Overview
 =================================
 
-**UNSTABLE - THIS GITHUB PROJECT IS STILL IN PROGRESS**
-
 wtop-clockwork is a fork of wtop_ with the goal of allowing Clockwork Active
 Media Systems to maintain changes until they are included upstream.
 
@@ -30,7 +28,8 @@ Differences From Upstream
 - Support for mod-log-firstbyte_ -- "A module for Apache 2.0 which allows you
   to log the time between each request being read and the first byte of the
   response served." (see Issue30_)
-- Ubuntu packaging (``debian`` directory)
+- **Ubuntu packaging** (``debian`` directory) without installation of DOS Batch
+  scripts
 
 .. _mod-log-firstbyte: http://code.google.com/p/mod-log-firstbyte/
 .. _Issue30: http://code.google.com/p/wtop/issues/detail?id=30
