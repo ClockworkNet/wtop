@@ -1,3 +1,9 @@
+wtop (0.6.8-2) hardy; urgency=low
+
+  * add patch to remove bat files
+
+ -- Tim Baldoni <tim@clockwork.net>  Tue, 10 Jan 2012 15:38:34 -0600
+
 wtop (0.6.8-1) hardy; urgency=low
 
   * Updated to 0.6.8

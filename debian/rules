@@ -1,10 +1,10 @@
 #!/usr/bin/make -f
 
-export DH_ALWAYS_EXCLUDE=.bat:.git:.svn
-
 DEB_PYTHON_SYSTEM=pysupport
+DH_ALWAYS_EXCLUDE=.git:.svn
 
 include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/rules/simple-patchsys.mk
 include /usr/share/cdbs/1/class/python-distutils.mk
 
 
