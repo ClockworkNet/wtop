@@ -119,7 +119,9 @@ LOG_DIRECTIVES = {
     '{ratio}n' : ('ratio', requoted, requoted_skipped), #todo: need generic %{foo}X parsing?
     '{host}i' : ('host', requoted, requoted_skipped),
     '{referer}i' : ('ref', requoted, requoted_skipped),
-    '{user-agent}i' : ('ua', requoted, requoted_skipped)
+    '{user-agent}i' : ('ua', requoted, requoted_skipped),
+    'ignore' : ('ignore', restr, restr_skipped),
+    'ignorequot' : ('ignore', requoted, requoted_skipped),
 }
 
 # lower-case some apache header options.

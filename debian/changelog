@@ -1,3 +1,9 @@
+wtop (0.6.8-3) hardy; urgency=low
+
+  * Add ignore fields to LOG_FORMAT per Issue 18
+
+ -- Tim Baldoni <tim@clockwork.net>  Wed, 11 Jan 2012 11:26:47 -0600
+
 wtop (0.6.8-2) hardy; urgency=low
 
   * add patch to remove bat files
