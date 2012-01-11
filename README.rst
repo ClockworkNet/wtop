@@ -25,12 +25,14 @@ statistics, etc.
 Differences From Upstream
 =================================
 
+- Support for ignore fields in LOG_FORMAT (see Issue18_)
 - Support for mod-log-firstbyte_ -- "A module for Apache 2.0 which allows you
   to log the time between each request being read and the first byte of the
   response served." (see Issue30_)
 - **Ubuntu packaging** (``debian`` directory) without installation of DOS Batch
   scripts
 
+.. _Issue18: http://code.google.com/p/wtop/issues/detail?id=18
 .. _mod-log-firstbyte: http://code.google.com/p/mod-log-firstbyte/
 .. _Issue30: http://code.google.com/p/wtop/issues/detail?id=30
 
