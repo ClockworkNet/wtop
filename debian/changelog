@@ -1,3 +1,9 @@
+wtop (0.6.8-4) hardy; urgency=low
+
+  * fix month handling in apache2dateparts
+
+ -- Tim Baldoni <tim@clockwork.net>  Wed, 11 Jul 2012 11:36:37 -0500
+
 wtop (0.6.8-3) hardy; urgency=low
 
   * Add ignore fields to LOG_FORMAT per Issue 18
