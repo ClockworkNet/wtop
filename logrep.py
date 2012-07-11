@@ -182,7 +182,7 @@ def apache2unixtime(t):
 
 # 21/Jul/2008:18:09:00 -0700   -->   (2008, 7, 21, 18, 9)
 def apache2dateparts(t):
-    return int(t[7:11]), months[t[3:6]], int(t[0:2]), int(t[12:14]), int(t[15:17])
+    return int(t[7:11]), time.strptime(t[3:6], "%b").tm_mon, int(t[0:2]), int(t[12:14]), int(t[15:17])
 
 
 # keeps a count of seen remote IP addresses. returns
