@@ -7,6 +7,6 @@ Standards-Version: 3.7.2
 
 Package: wtop
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: python-support, ${shlibs:Depends}, ${misc:Depends}
 Description: "top" for Apache, plus powerful log grepping
  "top" for Apache and other webservers, plus powerful log grepping

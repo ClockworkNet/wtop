@@ -42,7 +42,7 @@ Contributors
 
 - http://code.google.com/u/106843027557355696420/
 - https://github.com/insyte
-- https://github.com/TimBaldoni
+- https://github.com/TimZehta
 
 
 License
