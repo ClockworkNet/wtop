@@ -1,3 +1,9 @@
+wtop (0.6.8-5) lucid; urgency=low
+
+  * added python-support to Ubuntu package Depends
+
+ -- Tim Zehta <tim@clockwork.net>  Sun, 20 Jan 2013 09:22:15 -0600
+
 wtop (0.6.8-4) hardy; urgency=low
 
   * fix month handling in apache2dateparts
