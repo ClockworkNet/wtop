@@ -1,11 +1,11 @@
 #!/usr/bin/make -f
 
+# Exclude source control cruft and Python byte code
+DH_ALWAYS_EXCLUDE = .git:.pyc:.svn
+# For python-distutils.mk
 DEB_PYTHON_SYSTEM=pysupport
-DH_ALWAYS_EXCLUDE=.git:.svn
 
+# CDBS Includes
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/rules/simple-patchsys.mk
 include /usr/share/cdbs/1/class/python-distutils.mk
-
-
-# Add here any variable or target overrides you need.
