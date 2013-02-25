@@ -3,11 +3,11 @@ Thu, 21 Jul 2011 16:30:13 -0500
 
 It was downloaded from <http://code.google.com/p/wtop/>
 
-Upstream Author(s): 
+Upstream Author(s):
 
     Carlos Bueno <carlos@bueno.org>
 
-Copyright: 
+Copyright:
 
     Copyright (C) 2007-present Carlos Bueno <carlos@bueno.org>
 
@@ -47,6 +47,5 @@ On Debian systems, the complete text of the BSD License can be
 found in `/usr/share/common-licenses/BSD'.
 
 
-The Debian packaging is (C) 2011, Clockwork Active Media Systems
-is licensed under the BSD 2-Clause License,
-see `http://www.opensource.org/licenses/BSD-2-Clause'.
+The Debian packaging is also (C) 2011, Carlos Bueno <carlos@bueno.org>
+is licensed under the above BSD 3-Clause license.
