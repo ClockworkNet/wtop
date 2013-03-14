@@ -2,10 +2,10 @@
 
 # Exclude source control cruft and Python byte code
 DH_ALWAYS_EXCLUDE = .git:.pyc:.svn
-# For python-distutils.mk
-DEB_PYTHON_SYSTEM=pysupport
 
 # CDBS Includes
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/rules/simple-patchsys.mk
+# python-distutils.mk
+DEB_PYTHON_SYSTEM=pysupport
 include /usr/share/cdbs/1/class/python-distutils.mk
