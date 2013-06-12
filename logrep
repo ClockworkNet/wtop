@@ -172,7 +172,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
      $ logrep -o 'class,max(bytes),avg(msec)' access.log
 
 
-%s   %s    tim@clockwork.net   https://github.com/ClockworkNet/wtop-clockwork
+%s   %s     https://github.com/ClockworkNet/wtop-clockwork
 """ % (logrep.VERSION, logrep.VERDATE)
 
 import cPickle, tempfile, re, getopt, sys, os.path, random
