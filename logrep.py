@@ -93,8 +93,8 @@ def flatten(x):
 # translate log format string into a column list and regexp
 restr            = r'(\S+)'
 restr_skipped    = r'\S+'
-requoted         = r'([^"]*)'
-requoted_skipped = r'[^"]*'
+requoted         = r'((?:(?<![\\\])(?=[\\\][\\\])*[\\\]"|[^"])*)'
+requoted_skipped = r'(?:(?<![\\\])(?=[\\\][\\\])*[\\\]"|[^"])*'
 
 # {DIRECTIVE_SYMBOL: (FIELD_NAME, REGEX_WHEN_NEEDED, REGEX_WHEN_SKIPPED)}
 LOG_DIRECTIVES = {
