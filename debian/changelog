@@ -1,3 +1,9 @@
+wtop (0.6.8-cw6) lucid; urgency=low
+
+  * updated to support escaped quotes in quoted fields
+
+ -- Tim Zehta <tim@clockwork.net>  Wed, 12 Jun 2013 13:09:39 -0500
+
 wtop (0.6.8-5) lucid; urgency=low
 
   * added python-support to Ubuntu package Depends
@@ -35,4 +41,3 @@ wtop (0.6.7-1) hardy; urgency=low
   * Add support for %F (mod-log-firstbyte) field.
 
  -- Ben Beuchler <insyte@clockwork.net>  Thu, 21 Jul 2011 16:30:13 -0500
-
