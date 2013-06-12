@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-VERSION = "0.6.8"
-VERDATE = "3 Jan 2012"
+VERSION = "0.6.8-cw6"
+VERDATE = "2013 Jun 12"
 
 import os, os.path, math, fnmatch, re, time, calendar, string, socket, sys, random, ConfigParser, socket, urllib
 from copy import copy
