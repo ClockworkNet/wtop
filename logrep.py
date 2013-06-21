@@ -792,9 +792,9 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
     # post-processing for more complex aggregates
     def post_dev(sums, sq_sums, count):
         count = float(count)
-        numerator = math.sqrt((sq_sums - ((sums ** 2) / count)) / count)
-        denominator = (sums / count) + 1
-        return numerator / denominator
+        numerator = (count * sq_sums) - (sums * sums)
+        denominator = count * (count - 1)
+        return math.sqrt(numerator / denominator)
 
     def post_var(sums, sq_sums, count):
         count = float(count)
