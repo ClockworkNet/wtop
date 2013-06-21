@@ -734,7 +734,8 @@ def sort_fn(order_by, descending, limit):
 
 #bleh -- this fn is too long
 MAXINT = 1<<64
-def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, descending=True, tmpfile=None):
+def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
+                         descending=True, tmpfile=None):
     table = {}
     cnt = 0
     using_disk = False
@@ -747,43 +748,66 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
     # default depends on the agg function. Also take the opportunity
     # here to build a formatting string for printing the final results.
     fmt        = ['%s'] * len(agg_fields)
-    blank      = [0]    * (len(agg_fields)+1) # that +1 is for a count column
-    needed_post_fns = []
-    for i,f in enumerate(agg_fields):
+    blank      = [0] * (len(agg_fields) + 1) # that +1 is for a count column
+    needed_post_fns = list()
+    for i, f in enumerate(agg_fields):
         op, field = f
         if op == 'min':
             blank[i+1] = MAXINT
 
-        elif op == 'var' or op == 'dev':
-            blank[i+1] = (0, 0)  # sum, squared sum
-            needed_post_fns.append((op, i+1))
+        elif op in ('dev', 'var'):
+            blank[i + 1] = (0, 0)  # sum, squared sum
+            needed_post_fns.append((op, i + 1))
             fmt[i] = '%.2f'
 
         elif op == 'avg':
             fmt[i] = '%.2f'
     fmt = '\t'.join(fmt)
 
-    # the None function is for pass-through fields eg 'class' in 'class,max(msec)'
+
+    def agg_avg(i, r, field, table, key):
+        numerator = (table[key][i] * (table[key][0]-1)) + r[field]
+        denominator = float(table[key][0])
+        return numerator / denominator
+
+    def agg_post_prep(i, r, field, table, key):
+        sums = table[key][i][0] + r[field]
+        sq_sums = table[key][i][1] + (r[field] ** 2)
+        return (sums, sq_sums)
+
     agg_fns = {
-        None:    (lambda i, r, field, table, key: r[field]),
-        'count': (lambda i, r, field, table, key: table[key][0]), # count(*) is always just copied from col 0
-        'sum':   (lambda i, r, field, table, key: table[key][i] + r[field]),
-        'min':   (lambda i, r, field, table, key: min(r[field], table[key][i])),
-        'max':   (lambda i, r, field, table, key: max(r[field], table[key][i])),
-        'avg':   (lambda i, r, field, table, key: ((table[key][i] * (table[key][0]-1)) + r[field]) / float(table[key][0])),
-        'var':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))),
-        'dev':   (lambda i, r, field, table, key: (table[key][i][0]+r[field], table[key][i][1]+(r[field]**2))),
+        # the None function is for pass-through fields eg 'class' in
+        # 'class,max(msec)'
+        None: (lambda i, r, field, table, key: r[field]),
+        'avg': agg_avg,
+        # count(*) is always just copied from col 0
+        'count': (lambda i, r, field, table, key: table[key][0]),
+        'dev': agg_post_prep,
+        'max': (lambda i, r, field, table, key: max(r[field], table[key][i])),
+        'min': (lambda i, r, field, table, key: min(r[field], table[key][i])),
+        'sum': (lambda i, r, field, table, key: table[key][i] + r[field]),
+        'var': agg_post_prep,
     }
 
     # post-processing for more complex aggregates
+    def post_dev(sums, sq_sums, count):
+        count = float(count)
+        numerator = math.sqrt((sq_sums - ((sums ** 2) / count)) / count)
+        denominator = (sums / count) + 1
+        return numerator / denominator
+
+    def post_var(sums, sq_sums, count):
+        count = float(count)
+        return (sq_sums - ((sums ** 2) / count)) / count
+
     post_fns = {
-        'var':   (lambda sums, sq_sums, count: (sq_sums - ((sums ** 2) / float(count))) / float(count)),
-        'dev':   (lambda sums, sq_sums, count: math.sqrt((sq_sums - ((sums ** 2) / float(count))) / float(count)) / ((sums / float(count))+1))
+        'dev': post_dev,
+        'var': post_var,
     }
 
     # various stuff needed if we are also running a limit/sort
     if limit:
-        running_list = {}
+        running_list = dict()
         key_fn, key_fn2 = keyfns(order_by)
 
     lastt = time.time()
@@ -799,7 +823,8 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
         if not table.has_key(key):
             table[key] = copy(blank)
 
-        table[key][0] += 1 # always keep record count regardless of what the user asked for
+        # always keep record count regardless of what the user asked for
+        table[key][0] += 1
         for idx,(op,field) in enumerate(agg_fields):
             table[key][idx+1] = agg_fns[op](idx+1, r, field, table, key)
 
@@ -807,7 +832,9 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
         if limit:
             running_list[key] = table[key]
             if cnt % SORT_BUFFER_LENGTH:
-                running_list = dict(sorted(running_list.iteritems(), key=key_fn, reverse=descending)[0:limit])
+                running_list = dict(sorted(running_list.iteritems(),
+                                           key=key_fn,
+                                           reverse=descending)[0:limit])
 
         if using_disk and cnt % DISC_SYNC_CNT == 0:
             warn ('sync()ing records to disk...')
@@ -819,12 +846,15 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
     else:
         records = table
 
-    # todo: the arg signature is not generic. what other agg functions do people want?
+    # todo: the arg signature is not generic. what other agg functions do
+    # people want?
     if needed_post_fns:
         cnt = 0
         for k in records.iterkeys():
             for (fn, col_idx) in needed_post_fns:
-                records[k][col_idx] = post_fns[fn](records[k][col_idx][0], records[k][col_idx][1], records[k][0])
+                records[k][col_idx] = post_fns[fn](records[k][col_idx][0],
+                                                   records[k][col_idx][1],
+                                                   records[k][0])
             cnt += 1
             if using_disk and cnt % DISC_SYNC_CNT == 0:
                 warn ('sync()ing records to disk...')
@@ -832,7 +862,8 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0, des
 
 
     # return the records & printing format
-    # for silly reasons we have to also return the tmpfile and the table object.
+    # for silly reasons we have to also return the tmpfile and the table
+    # object.
     return records, fmt, tmpfile, table
 
 def agg_mode(rows, fmt):
