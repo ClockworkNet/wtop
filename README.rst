@@ -26,6 +26,7 @@ statistics, etc.
 Differences From Upstream
 =========================
 
+- Corrected standard deviation aggregate function (resolves Issue1_)
 - Support for ignore fields in LOG_FORMAT (resolves Issue18_)
 - Support for mod-log-firstbyte_ -- "A module for Apache 2.0 which allows you
   to log the time between each request being read and the first byte of the
@@ -36,6 +37,7 @@ Differences From Upstream
 - Additional miscellaneous fixes (resolves Issue29_)
 - All the convenience of GitHub!
 
+.. _Issue1: https://github.com/ClockworkNet/wtop-clockwork/issues/1
 .. _Issue18: http://code.google.com/p/wtop/issues/detail?id=18
 .. _Issue29: http://code.google.com/p/wtop/issues/detail?id=29
 .. _Issue30: http://code.google.com/p/wtop/issues/detail?id=30
