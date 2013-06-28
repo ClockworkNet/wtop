@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# vim: set fileencoding=utf-8 :
 
 VERSION = "0.6.8-cw6"
 VERDATE = "2013 Jun 12"
 
+# Standard library
 import ConfigParser
 import calendar
 from copy import copy
@@ -19,17 +20,13 @@ from subprocess import call
 import sys
 import time
 import urllib
-
-try:
-    set
-except NameError:
-    from sets import Set as set
-
+# Third-party
 try:
     import GeoIP
     geocoder = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
 except:
     geocoder = None
+
 
 LOG_LEVEL = 1                   # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000          # number of records to hold in memory before
