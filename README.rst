@@ -12,9 +12,35 @@ files? wtop shows you at a glance.
 logrep for webserver log analysis
 ---------------------------------
 
-wtop also comes with logrep, a powerful command-line program for ad-hoc
-analysis and filtering. Spot-check page performance, errors, aggregate
-statistics, etc.
+logrep is a powerful command-line program for ad-hoc analysis and filtering.
+Spot-check page performance, errors, aggregate statistics, etc.
+
+
+Installation
+============
+
+This is a Python source distribution. Install it like so::
+
+    sudo python setup.py install
+
+This will put logrep and wtop in your executable path, and drop the
+default wtop.cfg file into `/etc/wtop.cfg`
+
+wtop/logrep require Python version 2.6 or greater.
+
+
+Debian and Ubuntu
+-----------------
+
+See `Install - wtop wiki`_.
+
+
+Windows
+-------
+
+See `Install - wtop wiki`_.
+
+.. _`Install - wtop wiki`: https://github.com/ClockworkNet/wtop/wiki/Install
 
 
 Changelog
