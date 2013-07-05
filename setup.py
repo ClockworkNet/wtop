@@ -17,9 +17,9 @@ setup(
     scripts=["wtop", "logrep", "wtop.bat", "logrep.bat"],
     py_modules=["logrep"],
 
-    url="http://code.google.com/p/wtop/",
-    author="Carlos Bueno",
-    author_email="carlos@bueno.org",
+    url="https://github.com/ClockworkNet/wtop",
+    author="Timid Robot Zehta",
+    author_email="tim@clockwork.net",
 
     license="BSD",
     description="running statistics for webservers, plus powerful "

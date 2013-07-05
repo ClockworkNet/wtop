@@ -180,7 +180,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
      $ logrep -o 'class,max(bytes),avg(msec)' access.log
 
 
-%s   %s     https://github.com/ClockworkNet/wtop-clockwork
+%s   %s     https://github.com/ClockworkNet/wtop
 """ % (logrep.VERSION, logrep.VERDATE)
 
 

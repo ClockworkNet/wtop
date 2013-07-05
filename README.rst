@@ -1,12 +1,6 @@
 Overview
 ========
 
-wtop-clockwork is a fork of wtop_ with the goal of allowing Clockwork Active
-Media Systems to maintain changes until they are included upstream.
-
-.. _wtop: http://code.google.com/p/wtop/
-
-
 wtop for running statistics
 ---------------------------
 
@@ -23,40 +17,21 @@ analysis and filtering. Spot-check page performance, errors, aggregate
 statistics, etc.
 
 
-Differences From Upstream
-=========================
+Changelog
+=========
 
-- Corrected standard deviation aggregate function (resolves Issue1_)
-- Support for ignore fields in LOG_FORMAT (resolves Issue18_)
-- Support for mod-log-firstbyte_ -- "A module for Apache 2.0 which allows you
-  to log the time between each request being read and the first byte of the
-  response served." (resolves Issue30_)
-- Support for escaped quotes in quoted fields (resolves Issue34_)
-- **Ubuntu packaging** (``debian`` directory) without installation of DOS Batch
-  scripts
-- Additional miscellaneous fixes (resolves Issue29_)
-- All the convenience of GitHub!
-
-.. _Issue1: https://github.com/ClockworkNet/wtop-clockwork/issues/1
-.. _Issue18: http://code.google.com/p/wtop/issues/detail?id=18
-.. _Issue29: http://code.google.com/p/wtop/issues/detail?id=29
-.. _Issue30: http://code.google.com/p/wtop/issues/detail?id=30
-.. _Issue34: http://code.google.com/p/wtop/issues/detail?id=34
-.. _mod-log-firstbyte: http://code.google.com/p/mod-log-firstbyte/
+- See `<CHANGELOG.rst>`_
 
 
 Contributors
 ============
 
-- http://code.google.com/u/106843027557355696420/
-- https://github.com/insyte
-- https://github.com/TimZehta
+- See `<CONTRIBUTORS.rst>`_
 
 
 License
 =======
 
-- LICENSE_ (`BSD 3-Clause License`_)
+- `<LICENSE>`_ (`BSD 3-Clause License`_)
 
-.. _LICENSE: LICENSE
 .. _`BSD 3-Clause License`: http://www.opensource.org/licenses/BSD-3-Clause
