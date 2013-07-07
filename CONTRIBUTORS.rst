@@ -14,6 +14,7 @@ Past Contributors and Sponsors
 - `Carlos Bueno`_
 - Spock Networks, Inc.
 - Andrew Hedges
+- jbowtie
 - `Ben Beuchler`_
 
 .. _`Carlos Bueno`: http://carlos.bueno.org
