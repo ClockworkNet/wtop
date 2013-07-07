@@ -6,6 +6,7 @@ Improved
 
 - corrected `dev()` (standard deviation) (`GitHub Issue 1`_)
 - allow escaped quotes in re-quoted patterns (`Google Code Issue 34`_)
+- corrected date handling issue introduced in 0.6.8 (`Google Code Issue 32`_)
 - addded support for `%F` mod-log-firstbyte_ -- "A module for Apache 2.0 which
   allows you to log the time between each request being read and the first byte
   of the response served." (`Google Code Issue 30`_)
@@ -15,6 +16,7 @@ Improved
 
 .. _`GitHub Issue 1`: https://github.com/ClockworkNet/wtop/issues/1
 .. _`Google Code Issue 34`: http://code.google.com/p/wtop/issues/detail?id=34
+.. _`Google Code Issue 32`: http://code.google.com/p/wtop/issues/detail?id=32
 .. _`Google Code Issue 30`: http://code.google.com/p/wtop/issues/detail?id=30
 .. _`Google Code Issue 18`: http://code.google.com/p/wtop/issues/detail?id=18
 .. _mod-log-firstbyte: http://code.google.com/p/mod-log-firstbyte/
