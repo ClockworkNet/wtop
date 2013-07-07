@@ -1,39 +1,47 @@
+wtop (0.7) lucid; urgency=low
+
+  * change of project ownership
+  * corrected dev() (standard deviation)
+  * code clean-up
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Sun, 07 Jul 2013 07:30:50 -0500
+
 wtop (0.6.8-cw6) lucid; urgency=low
 
   * updated to support escaped quotes in quoted fields
 
- -- Tim Zehta <tim@clockwork.net>  Wed, 12 Jun 2013 13:09:39 -0500
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 12 Jun 2013 13:09:39 -0500
 
 wtop (0.6.8-5) lucid; urgency=low
 
   * added python-support to Ubuntu package Depends
 
- -- Tim Zehta <tim@clockwork.net>  Sun, 20 Jan 2013 09:22:15 -0600
+ -- Timid Robot Zehta <tim@clockwork.net>  Sun, 20 Jan 2013 09:22:15 -0600
 
 wtop (0.6.8-4) hardy; urgency=low
 
   * fix month handling in apache2dateparts
 
- -- Tim Baldoni <tim@clockwork.net>  Wed, 11 Jul 2012 11:36:37 -0500
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 11 Jul 2012 11:36:37 -0500
 
 wtop (0.6.8-3) hardy; urgency=low
 
   * Add ignore fields to LOG_FORMAT per Issue 18
 
- -- Tim Baldoni <tim@clockwork.net>  Wed, 11 Jan 2012 11:26:47 -0600
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 11 Jan 2012 11:26:47 -0600
 
 wtop (0.6.8-2) hardy; urgency=low
 
   * add patch to remove bat files
 
- -- Tim Baldoni <tim@clockwork.net>  Tue, 10 Jan 2012 15:38:34 -0600
+ -- Timid Robot Zehta <tim@clockwork.net>  Tue, 10 Jan 2012 15:38:34 -0600
 
 wtop (0.6.8-1) hardy; urgency=low
 
   * Updated to 0.6.8
   * Now maintained as wtop-clockwork on GitHub
 
- -- Tim Baldoni <tim@clockwork.net>  Thu, 08 Jan 2012 10:31:54 -0600
+ -- Timid Robot Zehta <tim@clockwork.net>  Thu, 08 Jan 2012 10:31:54 -0600
 
 wtop (0.6.7-1) hardy; urgency=low
 
