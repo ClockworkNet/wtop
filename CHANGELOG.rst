@@ -85,11 +85,13 @@ Improved
 - added experimental, limited support for Micrsoft IIS logs. At the moment only
   the "W3c Extended" format is supported. In a future release there will be
   support for custom column layouts, etc. Many thanks to jbowtie for the patch.
+  (`Google Code Issue 16`_)
 - added transparent support for Apache logfiles created with rotatelogs_. It
   should Just Work.
 - curses support in wtop mode, if available.
 - minor cleanups & speedups
 
+.. _`Google Code Issue 16`: http://code.google.com/p/wtop/issues/detail?id=16`
 .. _rotatelogs: http://httpd.apache.org/docs/2.0/programs/rotatelogs.html
 
 
