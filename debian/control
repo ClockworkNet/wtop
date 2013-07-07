@@ -2,11 +2,13 @@ Source: wtop
 Section: misc
 Priority: extra
 Maintainer: Timid Robot Zehta <tim@clockwork.net>
-Build-Depends: cdbs (>= 0.4.49), debhelper (>= 5), python (>=2.4), python-support
-Standards-Version: 3.7.2
+Build-Depends: cdbs (>= 0.4.62), debhelper (>= 7), python (>=2.6),
+ python-support
+Standards-Version: 3.8.3
+Homepage: http://flask.pocoo.org/
 
 Package: wtop
 Architecture: all
-Depends: python-support, ${shlibs:Depends}, ${misc:Depends}
+Depends: python (>=2.6), python-support
 Description: "top" for Apache, plus powerful log grepping
  "top" for Apache and other webservers, plus powerful log grepping
