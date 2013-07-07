@@ -2,7 +2,7 @@
 # vim: set fileencoding=utf-8 :
 
 VERSION = "0.7"
-VERDATE = "2013 Jul 04"
+VERDATE = "2013 Jul 07"
 
 # Standard library
 import ConfigParser

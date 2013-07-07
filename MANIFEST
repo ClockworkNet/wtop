@@ -1,10 +1,12 @@
-INSTALLING
+CHANGELOG.rst
+CONTRIBUTORS.rst
 LICENSE
 MANIFEST
+README.rst
 logrep
+logrep.bat
 logrep.py
 setup.py
 wtop
-wtop.cfg
-logrep.bat
 wtop.bat
+wtop.cfg
