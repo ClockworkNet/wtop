@@ -19,6 +19,17 @@ Spot-check page performance, errors, aggregate statistics, etc.
 Installation
 ============
 
+Download
+--------
+
+wtop can be downloaded from the GitHub releases_.
+
+.. _releases: https://github.com/ClockworkNet/wtop/releases
+
+
+From Source
+-----------
+
 This is a Python source distribution. Install it like so::
 
     sudo python setup.py install
