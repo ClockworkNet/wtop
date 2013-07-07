@@ -73,7 +73,9 @@ Improved
 Deprecated or Known Issues
 --------------------------
 
-- removed curses
+- removed curses (`Google Code Issue 23`_)
+
+.. _`Google Code Issue 23`: http://code.google.com/p/wtop/issues/detail?id=23
 
 
 version 0.6.3, 2008 Sep 01
