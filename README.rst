@@ -38,7 +38,8 @@ See how robot traffic rises and falls by day::
 
 Query for specific strings and conditions::
 
-    $ logrep -f "status=200,bytes>1000,msec<1000,url~Paris" -o ts,msec,bytes,url
+    $ logrep -f "status=200,bytes>1000,msec<1000,url~Paris" \
+        -o ts,msec,bytes,url
     1213574430      125     47396   /Paris-Hilton
     1213574892      126     47391   /Paris-Hilton
     1213579556      393     23028   /Diane-Parish
@@ -96,18 +97,18 @@ See `Install - wtop wiki`_.
 Changelog
 =========
 
-- See `<CHANGELOG.rst>`_
+- See `<CHANGELOG.rst>`_.
 
 
 Contributors
 ============
 
-- See `<CONTRIBUTORS.rst>`_
+- See `<CONTRIBUTORS.rst>`_.
 
 
 License
 =======
 
-- `<LICENSE>`_ (`BSD 3-Clause License`_)
+- See `<LICENSE>`_ (`BSD 3-Clause License`_).
 
 .. _`BSD 3-Clause License`: http://www.opensource.org/licenses/BSD-3-Clause
