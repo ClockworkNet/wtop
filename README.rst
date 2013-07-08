@@ -97,18 +97,18 @@ See `Install - wtop wiki`_.
 Changelog
 =========
 
-- See `<CHANGELOG.rst>`_.
+See `<CHANGELOG.rst>`_.
 
 
 Contributors
 ============
 
-- See `<CONTRIBUTORS.rst>`_.
+See `<CONTRIBUTORS.rst>`_.
 
 
 License
 =======
 
-- See `<LICENSE>`_ (`BSD 3-Clause License`_).
+See `<LICENSE>`_ (`BSD 3-Clause License`_).
 
 .. _`BSD 3-Clause License`: http://www.opensource.org/licenses/BSD-3-Clause
