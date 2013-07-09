@@ -7,6 +7,7 @@ VERDATE = "2013 Jul 07"
 # Standard library
 import ConfigParser
 import calendar
+from collections import deque
 from copy import copy
 import fnmatch
 from hashlib import md5 as md5
@@ -57,7 +58,7 @@ re_ip = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
 re_domain = re.compile(r"(?:https?://)?([^/]+)")
 ipcnts = dict()
 re_cmp = re.compile(r"([a-z]+)(>|<|=|\!=|\!~|\~)([^,]+)")
-re_agg = re.compile(r"(?:(sum|count|avg|min|max|var|dev)\(([a-z\*1]+|)\)|"
+re_agg = re.compile(r"(?:(avg|count|dev|max|min|miqm|sum|var)\(([a-z\*1]+|)\)|"
                     "([a-z]+))")
 
 # translate log format string into a column list and regexp
@@ -847,9 +848,65 @@ def sort_fn(order_by, descending, limit):
                                  reverse=descending)[0:limit])
 
 
+class MovingIQM():
+    def __init__(self, period):
+        self.period = int(period)
+        self.data = dict()
+
+    def prep_data(self, key):
+        data = self.data
+        if key not in data:
+            data[key] = {"stream": [deque(), deque()], "window": 0}
+
+    def process(self, key, stream_index, n):
+        stream = self.data[key]["stream"][stream_index]
+        stream.append(n)    # appends on the right
+        if len(stream) > self.period:
+            stream.popleft()
+
+    def report(self, key, stream_index):
+        stream = self.data[key]["stream"][stream_index]
+        stream_len = len(stream)
+        if stream_len == 0:
+            iqm = 0.0
+        elif stream_len < 4:
+            iqm = float(sum(stream) / stream_len)
+        else:
+            # determine quartile (point that divides the stream into four
+            # groups)
+            quartile = int(0.25 * stream_len)
+            # discard the lowest 25% and highest 25%
+            seq = sorted(stream)
+            seq = seq[quartile:-quartile]
+            # mean of the interquartile range
+            iqm = float(sum(seq)) / len(seq)
+        return iqm
+
+    def final_report(self, key):
+        window = self.data[key]["window"]
+        if len(self.data[key]["stream"][1]) == 0:
+            return self.report(key, 0)
+        if window > (self.period / 2):
+            window = 0
+            stream0_iqm = self.report(key, 0)
+            self.process(key, 1, stream0_iqm)
+        return self.report(key, 1)
+
+    def __call__(self, key, n):
+        self.prep_data(key)
+        self.process(key, 0, n)
+        window = self.data[key]["window"]
+        if window == self.period:
+            window = 0
+            stream0_iqm = self.report(key, 0)
+            self.process(key, 1, stream0_iqm)
+        self.data[key]["window"] = window + 1
+
+
 # bleh -- this fn is too long
 def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
                          descending=True, tmpfile=None):
+    miqm = MovingIQM(1000)
     MAXINT = 1 << 64
     table = dict()
     cnt = 0
@@ -867,22 +924,28 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
     needed_post_fns = list()
     for i, f in enumerate(agg_fields):
         op, field = f
-        if op == "min":
-            blank[i+1] = MAXINT
-
-        elif op in ("dev", "var"):
+        if op == "avg":
+            fmt[i] = "%.2f"
+        elif op in ("dev", "miqm", "var"):
             blank[i + 1] = (0, 0)  # sum, squared sum
             needed_post_fns.append((op, i + 1))
             fmt[i] = "%.2f"
-
-        elif op == "avg":
-            fmt[i] = "%.2f"
+        elif op == "min":
+            blank[i + 1] = MAXINT
     fmt = "\t".join(fmt)
 
     def agg_avg(i, r, field, table, key):
         numerator = (table[key][i] * (table[key][0]-1)) + r[field]
         denominator = float(table[key][0])
-        return numerator / denominator
+        if denominator == 0:
+            return 0
+        else:
+            return numerator / denominator
+
+    def agg_miqm(i, r, field, table, key):
+        miqm(key, r[field])
+        result = miqm.report(key, 1)
+        return (result, result)
 
     def agg_post_prep(i, r, field, table, key):
         sums = table[key][i][0] + r[field]
@@ -901,21 +964,29 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         "min": (lambda i, r, field, table, key: min(r[field], table[key][i])),
         "sum": (lambda i, r, field, table, key: table[key][i] + r[field]),
         "var": agg_post_prep,
+        "miqm": agg_miqm,
     }
 
     # post-processing for more complex aggregates
-    def post_dev(sums, sq_sums, count):
+    def post_dev(key, sums, sq_sums, count):
         count = float(count)
         numerator = (count * sq_sums) - (sums * sums)
         denominator = count * (count - 1)
-        return math.sqrt(numerator / denominator)
+        if denominator == 0:
+            return 0
+        else:
+            return math.sqrt(numerator / denominator)
 
-    def post_var(sums, sq_sums, count):
+    def post_miqm(key, sums, sq_sums, count):
+        return miqm.final_report(key)
+
+    def post_var(key, sums, sq_sums, count):
         count = float(count)
         return (sq_sums - ((sums ** 2) / count)) / count
 
     post_fns = {
         "dev": post_dev,
+        "miqm": post_miqm,
         "var": post_var,
     }
 
@@ -966,7 +1037,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         cnt = 0
         for k in records.iterkeys():
             for (fn, col_idx) in needed_post_fns:
-                records[k][col_idx] = post_fns[fn](records[k][col_idx][0],
+                records[k][col_idx] = post_fns[fn](k, records[k][col_idx][0],
                                                    records[k][col_idx][1],
                                                    records[k][0])
             cnt += 1
