@@ -1,3 +1,12 @@
+version 0.7.1, 2013 Jul 10
+==========================
+
+Improved
+--------
+
+- added `miqm()` (moving interquartile mean)
+
+
 version 0.7, 2013 Jul 07
 ========================
 

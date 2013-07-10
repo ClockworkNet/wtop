@@ -1,3 +1,9 @@
+wtop (0.7.1) lucid; urgency=low
+
+  * added miqm(); moving interquartile mean
+
+ -- Tim Zehta <tim@clockwork.net>  Wed, 10 Jul 2013 09:30:11 -0500
+
 wtop (0.7) lucid; urgency=low
 
   * change of project ownership

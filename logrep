@@ -93,13 +93,14 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                      on numeric fields such as bytes and msec. Any
                      non-aggregate fields in the list will be used to
                      group records together.
-                        count(*)
-                        avg(FIELD)   mean average
-                        min(FIELD)   lowest seen value
-                        max(FIELD)   highest seen value
-                        sum(FIELD)   summation of all values
-                        var(FIELD)   population variance
-                        dev(FIELD)   deviation (square root of variance)
+                        avg(FIELD)  mean average
+                        count(*)    record count
+                        dev(FIELD)  deviation (square root of variance)
+                        max(FIELD)  highest seen value
+                        min(FIELD)  lowest seen value
+                        miqm(FIELD) moving interquartile mean
+                        sum(FIELD)  summation of all values
+                        var(FIELD)  population variance
 
                      Example (grouped by status):
                      $ logrep -o 'status,count(*),avg(msec)'
@@ -117,11 +118,11 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
                      Example (total bytes sent, by hour & minute)
                      $ logrep -o 'hour,minute,sum(bytes)' -s'3600:1,2:a'
-                        12	0	1895927
-                        12	1	7418972
-                        12	2	2103828
-                        12	3	7419371
-                        12	4	1680468
+                        12  0   1895927
+                        12  1   7418972
+                        12  2   2103828
+                        12  3   7419371
+                        12  4   1680468
                         ...
 
                      Example (the 10 most popular URLs):
