@@ -943,6 +943,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
             return numerator / denominator
 
     def agg_miqm(i, r, field, table, key):
+        key="%s-%s" % (key, i)
         miqm(key, r[field])
         result = miqm.report(key, 1)
         return (result, result)
@@ -968,7 +969,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
     }
 
     # post-processing for more complex aggregates
-    def post_dev(key, sums, sq_sums, count):
+    def post_dev(key, col_idx, sums, sq_sums, count):
         count = float(count)
         numerator = (count * sq_sums) - (sums * sums)
         denominator = count * (count - 1)
@@ -977,10 +978,11 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         else:
             return math.sqrt(numerator / denominator)
 
-    def post_miqm(key, sums, sq_sums, count):
+    def post_miqm(key, col_idx, sums, sq_sums, count):
+        key = "%s-%s" % (key, col_idx)
         return miqm.final_report(key)
 
-    def post_var(key, sums, sq_sums, count):
+    def post_var(key, col_idx, sums, sq_sums, count):
         count = float(count)
         return (sq_sums - ((sums ** 2) / count)) / count
 
@@ -1037,7 +1039,8 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         cnt = 0
         for k in records.iterkeys():
             for (fn, col_idx) in needed_post_fns:
-                records[k][col_idx] = post_fns[fn](k, records[k][col_idx][0],
+                records[k][col_idx] = post_fns[fn](k, col_idx,
+                                                   records[k][col_idx][0],
                                                    records[k][col_idx][1],
                                                    records[k][0])
             cnt += 1
