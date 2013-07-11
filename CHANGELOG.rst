@@ -1,3 +1,12 @@
+version 0.7.2, 2013 Jul 11
+==========================
+
+Improved
+--------
+
+- fixed `miqm()` so that each aggregated field is handled separately
+
+
 version 0.7.1, 2013 Jul 10
 ==========================
 
@@ -5,6 +14,11 @@ Improved
 --------
 
 - added `miqm()` (moving interquartile mean)
+
+Deprecated or Known Issues
+--------------------------
+
+- `miqm()` only supports a single field in this release
 
 
 version 0.7, 2013 Jul 07

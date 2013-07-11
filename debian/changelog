@@ -1,3 +1,9 @@
+wtop (0.7.2) lucid; urgency=low
+
+  * fixed miqm() so that each aggregated field is handled separately
+
+ -- Tim Zehta <tim@clockwork.net>  Wed, 11 Jul 2013 14:58:55 -0500
+
 wtop (0.7.1) lucid; urgency=low
 
   * added miqm(); moving interquartile mean
