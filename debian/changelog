@@ -1,38 +1,44 @@
+wtop (0.7.3) lucid; urgency=low
+
+  * Corrected mid-processing miqm result--resolves sort issue
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 12 Jul 2013 12:00:52 -0500
+
 wtop (0.7.2) lucid; urgency=low
 
-  * fixed miqm() so that each aggregated field is handled separately
+  * Fixed miqm() so that each aggregated field is handled separately
 
- -- Tim Zehta <tim@clockwork.net>  Wed, 11 Jul 2013 14:58:55 -0500
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 11 Jul 2013 14:58:55 -0500
 
 wtop (0.7.1) lucid; urgency=low
 
-  * added miqm(); moving interquartile mean
+  * Added miqm(); moving interquartile mean
 
- -- Tim Zehta <tim@clockwork.net>  Wed, 10 Jul 2013 09:30:11 -0500
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 10 Jul 2013 09:30:11 -0500
 
 wtop (0.7) lucid; urgency=low
 
-  * change of project ownership
-  * corrected dev() (standard deviation)
-  * code clean-up
+  * Change of project ownership
+  * Corrected dev() (standard deviation)
+  * Code clean-up
 
  -- Timid Robot Zehta <tim@clockwork.net>  Sun, 07 Jul 2013 07:30:50 -0500
 
 wtop (0.6.8-cw6) lucid; urgency=low
 
-  * updated to support escaped quotes in quoted fields
+  * Updated to support escaped quotes in quoted fields
 
  -- Timid Robot Zehta <tim@clockwork.net>  Wed, 12 Jun 2013 13:09:39 -0500
 
 wtop (0.6.8-5) lucid; urgency=low
 
-  * added python-support to Ubuntu package Depends
+  * Added python-support to Ubuntu package Depends
 
  -- Timid Robot Zehta <tim@clockwork.net>  Sun, 20 Jan 2013 09:22:15 -0600
 
 wtop (0.6.8-4) hardy; urgency=low
 
-  * fix month handling in apache2dateparts
+  * Fix month handling in apache2dateparts
 
  -- Timid Robot Zehta <tim@clockwork.net>  Wed, 11 Jul 2012 11:36:37 -0500
 
@@ -44,7 +50,7 @@ wtop (0.6.8-3) hardy; urgency=low
 
 wtop (0.6.8-2) hardy; urgency=low
 
-  * add patch to remove bat files
+  * Add patch to remove bat files
 
  -- Timid Robot Zehta <tim@clockwork.net>  Tue, 10 Jan 2012 15:38:34 -0600
 
