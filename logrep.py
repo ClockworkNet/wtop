@@ -864,7 +864,7 @@ class MovingIQM():
         if len(stream) > self.period:
             stream.popleft()
 
-    def report(self, key, stream_index):
+    def iqm(self, key, stream_index):
         stream = self.data[key]["stream"][stream_index]
         stream_len = len(stream)
         if stream_len == 0:
@@ -882,15 +882,19 @@ class MovingIQM():
             iqm = float(sum(seq)) / len(seq)
         return iqm
 
+    def report(self, key):
+        if len(self.data[key]["stream"][1]) == 0:
+            return self.iqm(key, 0)
+        else:
+            return self.iqm(key, 1)
+
     def final_report(self, key):
         window = self.data[key]["window"]
-        if len(self.data[key]["stream"][1]) == 0:
-            return self.report(key, 0)
         if window > (self.period / 2):
             window = 0
-            stream0_iqm = self.report(key, 0)
+            stream0_iqm = self.iqm(key, 0)
             self.process(key, 1, stream0_iqm)
-        return self.report(key, 1)
+        return self.report(key)
 
     def __call__(self, key, n):
         self.prep_data(key)
@@ -898,7 +902,7 @@ class MovingIQM():
         window = self.data[key]["window"]
         if window == self.period:
             window = 0
-            stream0_iqm = self.report(key, 0)
+            stream0_iqm = self.iqm(key, 0)
             self.process(key, 1, stream0_iqm)
         self.data[key]["window"] = window + 1
 
@@ -945,7 +949,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
     def agg_miqm(i, r, field, table, key):
         key="%s-%s" % (key, i)
         miqm(key, r[field])
-        result = miqm.report(key, 1)
+        result = miqm.report(key)
         return (result, result)
 
     def agg_post_prep(i, r, field, table, key):
