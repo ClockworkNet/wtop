@@ -1,0 +1,7 @@
+include *.bat
+include *.cfg
+include *.py
+include *.rst
+include *.txt
+include logrep
+include wtop
