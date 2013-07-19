@@ -20,7 +20,7 @@ setup(name="wtop",
       description="running statistics for webservers, plus powerful "
                   "log-grepping tools",
       long_description=long_description,
-      download_url="https://github.com/ClockworkNet/wtop/releases",
+      download_url="https://github.com/ClockworkNet/wtop/releases#egg=wtop",
       classifiers=["Environment :: Console",
                    "License :: OSI Approved :: BSD License",
                    "Topic :: System :: Logging",
