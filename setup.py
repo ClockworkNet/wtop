@@ -9,6 +9,9 @@ import logrep
 
 cfg_file_path = logrep.cfg_home()
 
+with open('README.rst') as file:
+    long_description = file.read()
+
 setup(
     name="wtop",
     version=logrep.VERSION,
@@ -23,5 +26,6 @@ setup(
 
     license="BSD",
     description="running statistics for webservers, plus powerful "
-                "log-grepping tools"
+                "log-grepping tools",
+    long_description=long_description,
 )
