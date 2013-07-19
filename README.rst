@@ -97,18 +97,26 @@ See `Install - wtop wiki`_.
 Changelog
 =========
 
-See `<CHANGELOG.rst>`_.
+See `CHANGELOG.rst`_.
+
+.. _`CHANGELOG.rst`:
+   https://github.com/ClockworkNet/wtop/blob/master/CHANGELOG.rst
 
 
 Contributors
 ============
 
-See `<CONTRIBUTORS.rst>`_.
+See `CONTRIBUTORS.rst`_.
+
+.. _`CONTRIBUTORS.rst`:
+   https://github.com/ClockworkNet/wtop/blob/master/CONTRIBUTORS.rst
 
 
 License
 =======
 
-See `<LICENSE>`_ (`BSD 3-Clause License`_).
+See `LICENSE.txt`_ (`BSD 3-Clause License`_).
 
+.. _`LICENSE.txt`:
+   https://github.com/ClockworkNet/wtop/blob/master/LICENSE.txt
 .. _`BSD 3-Clause License`: http://www.opensource.org/licenses/BSD-3-Clause
