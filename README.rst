@@ -59,35 +59,36 @@ See `CookbookLogrep - wtop wiki`_ for additional examples.
 Installation
 ============
 
-Download
---------
+This will put logrep and wtop in your executable path, and drop the
+default wtop.cfg file into `/etc/wtop.cfg`.
 
-wtop can be downloaded from the GitHub releases_.
-
-.. _releases: https://github.com/ClockworkNet/wtop/releases
+wtop/logrep require Python version 2.6 or greater.
 
 
-From Source
------------
+From from PyPI
+--------------
+
+wtop can be installed from PyPI via pip_ like so::
+
+    sudo pip install wtop
+
+.. _pip: http://www.pip-installer.org/en/latest/installing.html
+
+
+Install from Source
+-------------------
+
+The wtop source can be downloaded from the GitHub releases_.
 
 This is a Python source distribution. Install it like so::
 
     sudo python setup.py install
 
-This will put logrep and wtop in your executable path, and drop the
-default wtop.cfg file into `/etc/wtop.cfg`
-
-wtop/logrep require Python version 2.6 or greater.
+.. _releases: https://github.com/ClockworkNet/wtop/releases
 
 
-Debian and Ubuntu
------------------
-
-See `Install - wtop wiki`_.
-
-
-Windows
--------
+Debian, Ubuntu, Windows, etc.
+-----------------------------
 
 See `Install - wtop wiki`_.
 
