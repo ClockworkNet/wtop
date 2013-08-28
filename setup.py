@@ -20,10 +20,10 @@ setup(
                    "Topic :: System :: Logging",
                    "Topic :: Utilities"],
       data_files=[(cfg_file_path, ["wtop.cfg"])],
-      description="running statistics for webservers, plus powerful "
-                  "log-grepping tools",
+      description="'top' for Apache and other web servers, plus powerful log
+                  grepping",
       download_url="https://github.com/ClockworkNet/wtop/releases#egg=wtop",
-      license="BSD",
+      license="BSD 3-Clause License",
       long_description=long_description,
       name="wtop",
       py_modules=["logrep"],
