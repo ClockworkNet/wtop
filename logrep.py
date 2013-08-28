@@ -88,8 +88,8 @@ LOG_DIRECTIVES = {
     "q": ("query",      re_str, re_str_skipped),
     "s": ("status",     re_str, re_str_skipped),
     "b": ("bytes",      re_str, re_str_skipped),
-    # NB: may change to "bytes_out"
     "B": ("bytes",      re_str, re_str_skipped),
+    "O": ("bytes",      re_str, re_str_skipped),
     "I": ("bytes_in",   re_str, re_str_skipped),
     "v": ("domain",     re_str, re_str_skipped),  # Host header
     # actual vhost. May clobber %v
