@@ -1,3 +1,12 @@
+version 0.7.5, 2013 Aug 28
+==========================
+
+Improved
+--------
+
+- Corrected debian docs and patch (for building a Debian or Ubuntu package)
+
+
 version 0.7.4, 2013 Aug 28
 ==========================
 

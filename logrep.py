@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 
-VERSION = "0.7.4"
+VERSION = "0.7.5"
 VERDATE = "2013 Aug 28"
 
 # Standard library
