@@ -1,3 +1,14 @@
+version 0.7.4, 2013 Aug 28
+==========================
+
+Improved
+--------
+
+- Added support for mod_logio's %O (`GitHub Issue 2`_)
+
+.. _`GitHub Issue 2`: https://github.com/ClockworkNet/wtop/issues/2
+
+
 version 0.7.3, 2013 Jul 12
 ==========================
 

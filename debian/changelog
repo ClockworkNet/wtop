@@ -1,3 +1,9 @@
+wtop (0.7.4) lucid; urgency=low
+
+  * Added support for mod_logio's %O
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Wed, 28 Aug 2013 14:48:00 -0500
+
 wtop (0.7.3) lucid; urgency=low
 
   * Corrected mid-processing miqm result--resolves sort issue
