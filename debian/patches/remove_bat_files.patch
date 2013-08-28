@@ -1,0 +1,11 @@
+--- old/setup.py	2013-07-19 16:52:16.000000000 -0500
++++ new/setup.py	2013-08-28 14:58:40.000000000 -0500
+@@ -27,7 +27,7 @@
+       long_description=long_description,
+       name="wtop",
+       py_modules=["logrep"],
+-      scripts=["wtop", "logrep", "wtop.bat", "logrep.bat"],
++      scripts=["wtop", "logrep"],
+       url="https://github.com/ClockworkNet/wtop",
+       version=logrep.VERSION,
+ )
