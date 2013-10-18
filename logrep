@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# vim: set fileencoding=utf-8 :
 # Standard library
 import getopt
 import os.path
@@ -96,9 +95,10 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         avg(FIELD)  mean average
                         count(*)    record count
                         dev(FIELD)  deviation (square root of variance)
+                        iqm(FIELD)  Interquartile Mean (see IQM below)
                         max(FIELD)  highest seen value
                         min(FIELD)  lowest seen value
-                        miqm(FIELD) moving interquartile mean
+                        miqm(FIELD) moving interquartile mean (see IQM below)
                         sum(FIELD)  summation of all values
                         var(FIELD)  population variance
 
@@ -153,6 +153,31 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     will enable two extra fields for filtering and output: country
     (eg "United Kingdom"), and cc (ISO-639 country code, eg "UK"). These
     are a *guess* at the country the HTTP client is from.
+
+ IQM:
+    logrep will use the python-iqm module if it is installed. This will
+    enable two extra aggregation fields: iqm, miqm
+
+    Additional options are available. Please report any scenarios where
+    the defaults were not optimal.
+
+    --iqm-round-digits      Digit supplied to the round() function
+                            (default: -1)
+
+    --iqm-tenth-precise     True will round to one less digit for the
+                            lowest 10%%. For example: round_digits=-1,
+                            tenth_precise would result in numbers less
+                            than 10 being rounded to to the nearest 1
+                            instead of 0 or 10 (default: True)
+
+    --iqm-none-action       Determines how non-numbers are treated
+                            (all non-numbers are stored as None):
+
+                            discard: discard them (default)
+                            max: replace them with the maximum value
+                            min: replace them with the minimum value
+
+    --miqm-non-action       As above.
 
  KNOWN BUG:
     Some installations of Apache have HostnameLookups defaulted to On.

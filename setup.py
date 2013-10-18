@@ -1,6 +1,10 @@
-# vim: set fileencoding=utf-8 :
-# Standard library
-from distutils.core import setup
+#!/usr/bin/env python
+try:
+    # Third-party
+    from setuptools import setup
+except ImportError:
+    # Standard library
+    from distutils.core import setup
 # Project
 import logrep
 
@@ -16,13 +20,15 @@ setup(
       author="Timid Robot Zehta",
       author_email="tim@clockwork.net",
       classifiers=["Environment :: Console",
+                   "Intended Audience :: System Administrators",
                    "License :: OSI Approved :: BSD License",
                    "Topic :: System :: Logging",
                    "Topic :: Utilities"],
       data_files=[(cfg_file_path, ["wtop.cfg"])],
-      description="'top' for Apache and other web servers, plus powerful log
-                  grepping",
-      download_url="https://github.com/ClockworkNet/wtop/releases#egg=wtop",
+      description="'top' for Apache and other web servers, plus powerful log"
+                  "grepping",
+      download_url="https://github.com/ClockworkNet/wtop/releases",
+      install_requires=["python-iqm"],
       license="BSD 3-Clause License",
       long_description=long_description,
       name="wtop",

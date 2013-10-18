@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 
-VERSION = "0.7.5"
-VERDATE = "2013 Aug 28"
+VERSION = "0.7.6"
+VERDATE = "2013 Oct 18"
 
 # Standard library
 import ConfigParser
@@ -27,6 +27,11 @@ try:
     geocoder = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
 except:
     geocoder = None
+try:
+    import iqm
+    iqm_available = True
+except:
+    iqm_available = False
 
 
 LOG_LEVEL = 1                   # 0 == quiet, 1 == normal, 2 == debug
@@ -58,8 +63,12 @@ re_ip = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
 re_domain = re.compile(r"(?:https?://)?([^/]+)")
 ipcnts = dict()
 re_cmp = re.compile(r"([a-z]+)(>|<|=|\!=|\!~|\~)([^,]+)")
-re_agg = re.compile(r"(?:(avg|count|dev|max|min|miqm|sum|var)\(([a-z\*1]+|)\)|"
-                    "([a-z]+))")
+if iqm_available:
+    re_agg = re.compile(r"(?:(avg|count|dev|iqm|max|min|miqm|sum|var)"
+                         "\(([a-z\*1]+|)\)|([a-z]+))")
+else:
+    re_agg = re.compile(r"(?:(avg|count|dev|max|min|sum|var)"
+                         "\(([a-z\*1]+|)\)|([a-z]+))")
 
 # translate log format string into a column list and regexp
 re_str = r"(\S+)"
@@ -848,69 +857,12 @@ def sort_fn(order_by, descending, limit):
                                  reverse=descending)[0:limit])
 
 
-class MovingIQM():
-    def __init__(self, period):
-        self.period = int(period)
-        self.data = dict()
-
-    def prep_data(self, key):
-        data = self.data
-        if key not in data:
-            data[key] = {"stream": [deque(), deque()], "window": 0}
-
-    def process(self, key, stream_index, n):
-        stream = self.data[key]["stream"][stream_index]
-        stream.append(n)    # appends on the right
-        if len(stream) > self.period:
-            stream.popleft()
-
-    def iqm(self, key, stream_index):
-        stream = self.data[key]["stream"][stream_index]
-        stream_len = len(stream)
-        if stream_len == 0:
-            iqm = 0.0
-        elif stream_len < 4:
-            iqm = float(sum(stream) / stream_len)
-        else:
-            # determine quartile (point that divides the stream into four
-            # groups)
-            quartile = int(0.25 * stream_len)
-            # discard the lowest 25% and highest 25%
-            seq = sorted(stream)
-            seq = seq[quartile:-quartile]
-            # mean of the interquartile range
-            iqm = float(sum(seq)) / len(seq)
-        return iqm
-
-    def report(self, key):
-        if len(self.data[key]["stream"][1]) == 0:
-            return self.iqm(key, 0)
-        else:
-            return self.iqm(key, 1)
-
-    def final_report(self, key):
-        window = self.data[key]["window"]
-        if window > (self.period / 2):
-            window = 0
-            stream0_iqm = self.iqm(key, 0)
-            self.process(key, 1, stream0_iqm)
-        return self.report(key)
-
-    def __call__(self, key, n):
-        self.prep_data(key)
-        self.process(key, 0, n)
-        window = self.data[key]["window"]
-        if window == self.period:
-            window = 0
-            stream0_iqm = self.iqm(key, 0)
-            self.process(key, 1, stream0_iqm)
-        self.data[key]["window"] = window + 1
-
-
 # bleh -- this fn is too long
 def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
                          descending=True, tmpfile=None):
-    miqm = MovingIQM(1000)
+    if iqm_available:
+        miqm = iqm.MovingIQM(1000)
+        diqm = iqm.DictIQM(round_digits=-1, tenth_precise=True)
     MAXINT = 1 << 64
     table = dict()
     cnt = 0
@@ -934,6 +886,9 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
             blank[i + 1] = (0, 0)  # sum, squared sum
             needed_post_fns.append((op, i + 1))
             fmt[i] = "%.2f"
+        elif op == "iqm":
+            needed_post_fns.append((op, i + 1))
+            fmt[i] = "%d"
         elif op == "min":
             blank[i + 1] = MAXINT
     fmt = "\t".join(fmt)
@@ -946,11 +901,15 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         else:
             return numerator / denominator
 
+    def agg_iqm(i, r, field, table, key):
+        key="%s-%s" % (key, i)
+        diqm(key, r[field])
+        return (0, 0)
+
     def agg_miqm(i, r, field, table, key):
         key="%s-%s" % (key, i)
         miqm(key, r[field])
-        result = miqm.report(key)
-        return (result, result)
+        return (0, 0)
 
     def agg_post_prep(i, r, field, table, key):
         sums = table[key][i][0] + r[field]
@@ -969,8 +928,10 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         "min": (lambda i, r, field, table, key: min(r[field], table[key][i])),
         "sum": (lambda i, r, field, table, key: table[key][i] + r[field]),
         "var": agg_post_prep,
-        "miqm": agg_miqm,
     }
+    if iqm_available:
+        agg_fns["iqm"] = agg_iqm
+        agg_fns["miqm"] = agg_miqm
 
     # post-processing for more complex aggregates
     def post_dev(key, col_idx, sums, sq_sums, count):
@@ -982,9 +943,13 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
         else:
             return math.sqrt(numerator / denominator)
 
+    def post_iqm(key, col_idx, sums, sq_sums, count):
+        key = "%s-%s" % (key, col_idx)
+        return diqm.report(key)
+
     def post_miqm(key, col_idx, sums, sq_sums, count):
         key = "%s-%s" % (key, col_idx)
-        return miqm.final_report(key)
+        return miqm.report(key)
 
     def post_var(key, col_idx, sums, sq_sums, count):
         count = float(count)
@@ -992,9 +957,11 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
 
     post_fns = {
         "dev": post_dev,
-        "miqm": post_miqm,
         "var": post_var,
     }
+    if iqm_available:
+        post_fns["iqm"] = post_iqm
+        post_fns["miqm"] = post_miqm
 
     # various stuff needed if we are also running a limit/sort
     if limit:
