@@ -1,3 +1,19 @@
+version 0.7.6, 2013 Oct 18
+==========================
+
+Improved
+--------
+
+- Now utilizes `python-iqm`_ for iqm (interquaritle mean) and miqm (moving
+  interquartile mean) aggregation functions
+- MovingIQM class removed from `logrep.py`
+- `setup.py` updated to use setuptools per `Python Packaging User Guide`_
+
+.. _`python-iqm`: https://github.com/ClockworkNet/python-iqm
+.. _`Python Packaging User Guide`:
+   https://python-packaging-user-guide.readthedocs.org/en/latest/
+
+
 version 0.7.5, 2013 Aug 28
 ==========================
 

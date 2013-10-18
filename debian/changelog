@@ -1,3 +1,12 @@
+wtop (0.7.6) lucid; urgency=low
+
+  * Now utilizes python-iqm for iqm (interquaritle mean) and miqm (moving
+    interquartile mean) aggregation functions
+  * MovingIQM class removed from logrep.py
+  * setup.py updated to use setuptools per Python Packaging User Guide
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Fri, 18 Oct 2013 10:24:00 -0500
+
 wtop (0.7.5) lucid; urgency=low
 
   * Updated docs and patch to fix debian/ubuntu build process
