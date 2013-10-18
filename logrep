@@ -158,27 +158,6 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
     logrep will use the python-iqm module if it is installed. This will
     enable two extra aggregation fields: iqm, miqm
 
-    Additional options are available. Please report any scenarios where
-    the defaults were not optimal.
-
-    --iqm-round-digits      Digit supplied to the round() function
-                            (default: -1)
-
-    --iqm-tenth-precise     True will round to one less digit for the
-                            lowest 10%%. For example: round_digits=-1,
-                            tenth_precise would result in numbers less
-                            than 10 being rounded to to the nearest 1
-                            instead of 0 or 10 (default: True)
-
-    --iqm-none-action       Determines how non-numbers are treated
-                            (all non-numbers are stored as None):
-
-                            discard: discard them (default)
-                            max: replace them with the maximum value
-                            min: replace them with the minimum value
-
-    --miqm-non-action       As above.
-
  KNOWN BUG:
     Some installations of Apache have HostnameLookups defaulted to On.
     This means that the %%h field will contain the fully-qualified domain
@@ -208,6 +187,29 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 %s   %s     https://github.com/ClockworkNet/wtop
 """ % (logrep.VERSION, logrep.VERDATE)
+
+# Not-yet supported IQM options
+#
+#    Additional options are available. Please report any scenarios where
+#    the defaults were not optimal.
+#
+#    --iqm-round-digits      Digit supplied to the round() function
+#                            (default: -1)
+#
+#    --iqm-tenth-precise     True will round to one less digit for the
+#                            lowest 10%%. For example: round_digits=-1,
+#                            tenth_precise would result in numbers less
+#                            than 10 being rounded to to the nearest 1
+#                            instead of 0 or 10 (default: True)
+#
+#    --iqm-none-action       Determines how non-numbers are treated
+#                            (all non-numbers are stored as None):
+#
+#                            discard: discard them (default)
+#                            max: replace them with the maximum value
+#                            min: replace them with the minimum value
+#
+#    --miqm-non-action       As above.
 
 
 def runit():
