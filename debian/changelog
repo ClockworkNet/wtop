@@ -1,3 +1,9 @@
+wtop (0.7.7) lucid; urgency=low
+
+  * Removed not-yet-implemented help text
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Fri, 18 Oct 2013 11:02:00 -0500
+
 wtop (0.7.6) lucid; urgency=low
 
   * Now utilizes python-iqm for iqm (interquaritle mean) and miqm (moving
