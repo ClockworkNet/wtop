@@ -123,7 +123,14 @@ def warn(s):
 def cfg_home():
     if (os.name != "posix"):
         return sys.prefix
-    return "/etc"
+
+    path = "/etc"
+
+    venv = os.environ.get("VIRTUAL_ENV")
+    if venv is not None:
+        path = venv + "/etc"
+
+    return path
 
 
 # yes, this is ugly.

@@ -237,7 +237,7 @@ def runit():
     x_tmp_file = None
 
     MODE = "grep"
-    cfg = "/etc/wtop.cfg"
+    cfg = None
 
     for o, v in opts:
         if o in ("-h", "-?", "--help"):
