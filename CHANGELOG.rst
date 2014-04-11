@@ -1,3 +1,22 @@
+version 0.7.8-PENDING
+==========================
+
+Improved
+--------
+
+- Added debug()
+- Refactored cfg_file handling with assistanc from Matt Gray
+
+  - Setup detects VirtualEnv and respects --user
+  - Logrep/wtop search for the config if it is not specified (see help)
+
+Deprecated or Known Issues
+--------------------------
+
+- iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
+  is less than the total number of records returned (`GitHub Issue 4`_)
+
+
 version 0.7.7, 2013 Oct 18
 ==========================
 
@@ -5,6 +24,12 @@ Improved
 --------
 
 - Removed not-yet-implemented help text
+
+Deprecated or Known Issues
+--------------------------
+
+- iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
+  is less than the total number of records returned (`GitHub Issue 4`_)
 
 
 version 0.7.6, 2013 Oct 18
@@ -26,6 +51,10 @@ Deprecated or Known Issues
 --------------------------
 
 - Help text contains not-yet-implemented IQM related options
+- iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
+  is less than the total number of records returned (`GitHub Issue 4`_)
+
+.. _`GitHub Issue 4`: https://github.com/ClockworkNet/wtop/issues/4
 
 
 version 0.7.5, 2013 Aug 28
