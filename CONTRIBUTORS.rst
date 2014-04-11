@@ -16,6 +16,8 @@ Past Contributors and Sponsors
 - Andrew Hedges
 - jbowtie
 - `Ben Beuchler`_
+- `Matt Gray`_
 
 .. _`Carlos Bueno`: http://carlos.bueno.org
 .. _`Ben Beuchler`: https://github.com/insyte
+.. _`Matt Gray`: https://github.com/rrazor
