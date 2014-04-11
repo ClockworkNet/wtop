@@ -9,6 +9,7 @@ import ConfigParser
 import calendar
 from collections import deque
 from copy import copy
+import distutils.sysconfig
 import fnmatch
 from hashlib import md5 as md5
 import math
@@ -16,6 +17,7 @@ import os
 import os.path
 import random
 import re
+import site
 import socket
 from subprocess import call
 import sys
@@ -114,23 +116,64 @@ LOG_DIRECTIVES = {
 }
 
 
+def debug(s):
+    if LOG_LEVEL < 2:
+        return
+    sys.stderr.write(s + "\n")
+
+
 def warn(s):
     if LOG_LEVEL < 1:
         return
     sys.stderr.write(s + "\n")
 
 
-def cfg_home():
-    if (os.name != "posix"):
-        return sys.prefix
+def find_cfg_file():
+    """Find cfg_file by searching from most accurate/specific to least.
 
-    path = "/etc"
+    1. VirtualEnv + /etc/wtop.cfg
+    2. PYTHONUSERBASE + /etc/wtop.cfg
+    3. USER_BASE + /etc/wtop.cfg
+    4. Python Lib + /etc/wtop.cfg
+    5. /etc/wtop.cfg
+    """
+    def test_file(cfg_prefix, cfg_suffix):
+        """Concatenate paths and test if resulting path is a file."""
+        cfg_file = os.path.join(cfg_prefix, cfg_suffix)
+        if os.path.isfile(cfg_file):
+            debug("Using cfg_file: %s" % cfg_file)
+            return cfg_file
+        else:
+            debug("Cfg_file skipped. Cfg_file not found: %s" %
+                  cfg_file)
+            return None
 
-    venv = os.environ.get("VIRTUAL_ENV")
-    if venv is not None:
-        path = venv + "/etc"
-
-    return path
+    etc_wtop_path = os.path.join("etc", "wtop.cfg")
+    # VirtualEnv
+    if hasattr(sys, "real_prefix"):
+        cfg_file = test_file(sys.prefix, etc_wtop_path)
+        if cfg_file:
+            return cfg_file
+    # PYTHONUSERBASE
+    user_base = os.environ.get("PYTHONUSERBASE")
+    if user_base:
+        cfg_file = test_file(user_base, etc_wtop_path)
+        if cfg_file:
+            return cfg_file
+    # USER_BASE
+    cfg_file = test_file(site.USER_BASE, etc_wtop_path)
+    if cfg_file:
+        return cfg_file
+    # Distutils Python Lib
+    cfg_file = test_file(distutils.sysconfig.get_python_lib(), etc_wtop_path)
+    if cfg_file:
+        return cfg_file
+    # /etc/wtop.cfg (for backwards compatibility
+    cfg_file = test_file("/", "etc/wtop.cfg")
+    if cfg_file:
+        return cfg_file
+    # fail.
+    raise Exception("Cfg_file could not be found")
 
 
 # yes, this is ugly.
@@ -139,11 +182,7 @@ def configure(cfg_file=None):
     global LOG_FORMAT, LOG_PATTERN, LOG_ROOT, MAX_REQUEST_TIME, MIN_RPS
     global config, re_classes, re_generic, re_robots
 
-    if not cfg_file:
-        cfg_file = os.path.join(cfg_home(), "wtop.cfg")
-
-    if not os.path.exists(cfg_file):
-        raise Exception("can't read config file: '%s'" % cfg_file)
+    cfg_file = find_cfg_file()
 
     config = ConfigParser.ConfigParser()
     config.read(cfg_file)

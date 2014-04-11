@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+import distutils.sysconfig
+import os.path
+import site
+import sys
+# setup
 try:
     # Third-party
     from setuptools import setup
@@ -11,7 +16,15 @@ import logrep
 # For historical reasons this package is called "wtop" even though wtop is a
 # paper-thin shell on a special case of logrep.
 
-cfg_file_path = logrep.cfg_home()
+# Install config file appropriately
+cfg_file_path = "etc"
+if hasattr(sys, "real_prefix"):
+    cfg_file_path = os.path.join(sys.prefix, cfg_file_path)
+elif "--user" in sys.argv:
+    cfg_file_path = os.path.join(site.USER_BASE, cfg_file_path)
+else:
+    cfg_file_path = os.path.join(distutils.sysconfig.get_python_lib(),
+                                 cfg_file_path)
 
 with open('README.rst') as file:
     long_description = file.read()
