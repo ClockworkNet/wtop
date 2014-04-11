@@ -67,10 +67,10 @@ ipcnts = dict()
 re_cmp = re.compile(r"([a-z]+)(>|<|=|\!=|\!~|\~)([^,]+)")
 if iqm_available:
     re_agg = re.compile(r"(?:(avg|count|dev|iqm|max|min|miqm|sum|var)"
-                         "\(([a-z\*1]+|)\)|([a-z]+))")
+                        "\(([a-z\*1]+|)\)|([a-z]+))")
 else:
     re_agg = re.compile(r"(?:(avg|count|dev|max|min|sum|var)"
-                         "\(([a-z\*1]+|)\)|([a-z]+))")
+                        "\(([a-z\*1]+|)\)|([a-z]+))")
 
 # translate log format string into a column list and regexp
 re_str = r"(\S+)"
@@ -948,12 +948,12 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
             return numerator / denominator
 
     def agg_iqm(i, r, field, table, key):
-        key="%s-%s" % (key, i)
+        key = "%s-%s" % (key, i)
         diqm(key, r[field])
         return (0, 0)
 
     def agg_miqm(i, r, field, table, key):
-        key="%s-%s" % (key, i)
+        key = "%s-%s" % (key, i)
         miqm(key, r[field])
         return (0, 0)
 

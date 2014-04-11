@@ -29,8 +29,7 @@ else:
 with open('README.rst') as file:
     long_description = file.read()
 
-setup(
-      author="Timid Robot Zehta",
+setup(author="Timid Robot Zehta",
       author_email="tim@clockwork.net",
       classifiers=["Environment :: Console",
                    "Intended Audience :: System Administrators",
@@ -49,4 +48,4 @@ setup(
       scripts=["wtop", "logrep", "wtop.bat", "logrep.bat"],
       url="https://github.com/ClockworkNet/wtop",
       version=logrep.VERSION,
-)
+      )
