@@ -7,7 +7,6 @@ VERDATE = "2013 Oct 18"
 # Standard library
 import ConfigParser
 import calendar
-from collections import deque
 from copy import copy
 import distutils.sysconfig
 import fnmatch
@@ -1203,8 +1202,9 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100,
                     continue
                 v = stats[k]
 
-                if do_hist:
-                    histogram = normalize(v["hist"], v["count"][0], hist_scale)
+# Not used. Strange. Disable for now.
+#               if do_hist:
+#                   histogram = normalize(v["hist"], v["count"][0], hist_scale)
 
                 call(["rrdtool", "update", "%s.rrd" % k,
                       "%d:%s:%s:%s:%s:%s" %
