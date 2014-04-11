@@ -137,12 +137,21 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
 
    -c CFG_FILE       Feed logrep a custom config file. By default it
-   --config          will use:
-                        /etc/wtop.cfg         (Linux, BSD, OSX, etc)
-                        Python sys.prefix     (Windows)
+   --config          will search for a file to use in the following
+                     order:
+
+                        VirtualEnv + /etc/wtop.cfg
+                        PYTHONUSERBASE + /etc/wtop.cfg
+                        USER_BASE + /etc/wtop.cfg
+                        Python Lib + /etc/wtop.cfg
+                        /etc/wtop.cfg
+
+                        Platform appropriate path separaters are used.
 
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
+
+   -d, --debug       Print debug messages to stderr.
 
    LOG_FILE          The path to a log file. By default logrep will
                      read from the file path specified in wtop.cfg
@@ -271,7 +280,7 @@ def runit():
             agg_limit, order_by, order_descending = logrep.compile_orderby(v)
         elif o in ("-c", "--config"):
             if v:
-                if not os.path.exists(v):
+                if not os.path.isfile(v):
                     raise Exception("can't read config file: '%s'" % v)
                 cfg = v
 
