@@ -36,3 +36,6 @@ nosetests.xml
 
 # distutils
 MANIFEST
+
+# data files
+uasparser.xml
