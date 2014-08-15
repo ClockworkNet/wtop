@@ -46,7 +46,7 @@ class Trie():
                     cc.append(self.quote(char))
             else:
                 q=1
-        cconly=len(alt) and 0 or 1  #if len, 0; else:0
+        cconly=not len(alt)>0
 
         if len(cc)>0:
             if len(cc)==1:
