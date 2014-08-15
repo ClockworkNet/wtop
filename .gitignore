@@ -37,5 +37,7 @@ nosetests.xml
 # distutils
 MANIFEST
 
-# data files
+# temporary and data files
+robot_user_agents.txt
+robots_excerpt.ini
 uasparser.xml
