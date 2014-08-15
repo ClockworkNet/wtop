@@ -3,10 +3,11 @@
 #
 # author:         rex
 # blog:           http://iregex.org
-# filename        tr.py
+# filename        trie.py
 # created:        2010-08-01 20:24
 # source uri:     http://iregex.org/blog/trie-in-python.html
 
+# Standard Library
 import re
 
 
