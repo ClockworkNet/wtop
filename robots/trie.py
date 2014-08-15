@@ -5,9 +5,14 @@
 #blog:           http://iregex.org
 #filename        tr.py
 #created:        2010-08-01 20:24
+#source uri:     http://iregex.org/blog/trie-in-python.html
 
+# escape bug fix by fcicq @ 2012.8.19
+
+import re
 class Trie():
     """Regexp::Trie in python"""
+
     def __init__(self):
         self.data={}
 
@@ -21,6 +26,9 @@ class Trie():
     def dump(self):
         return self.data
 
+    def quote(self, char):
+        return re.escape(char)
+
     def _regexp(self, pData):
         data=pData
         if data.has_key("") and len(data.keys())==1:
@@ -33,9 +41,9 @@ class Trie():
             if isinstance(data[char],dict):
                 try:
                     recurse=self._regexp(data[char])
-                    alt.append(char+recurse)
+                    alt.append(self.quote(char)+recurse)
                 except:
-                    cc.append(char)
+                    cc.append(self.quote(char))
             else:
                 q=1
         cconly=len(alt) and 0 or 1  #if len, 0; else:0
@@ -58,10 +66,12 @@ class Trie():
                 result="(?:%s)?" % result
         return result
     def regexp(self):
-        return "(?-xism:%s)" % self._regexp(self.dump())
+        # return "(?-xism:%s)" % self._regexp(self.dump()) # fcicq: not sure what is it...
+        return self._regexp(self.dump())
 
-a=Trie()
+if __name__ == '__main__':
+  a=Trie()
 
-for w in ['foobar', 'foobah', 'fooxar', 'foozap', 'fooza']:
-    a.add(w)
-print a.regexp()
+  for w in ['foobar', 'foobah', 'fooxar', 'foozap', 'fooza']:
+      a.add(w)
+  print a.regexp()
