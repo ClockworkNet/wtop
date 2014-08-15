@@ -98,7 +98,8 @@ def main():
 
     # write out robots config excerpt
     with io.open(file_robots_config, "w", encoding="utf8") as fh:
-        fh.write("robots=%s\n" % optibots)
+        fh.write(u"[patterns]\n")
+        fh.write(u"robots=%s\n" % optibots)
 
     # write out robot users agents for testing
     with io.open(file_user_agents, "w", encoding="utf8") as fh:
