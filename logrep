@@ -135,7 +135,6 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
    -l LAST_N         (grep mode) Only read the last N log lines.
    --last
 
-
    -c CFG_FILE       Feed logrep a custom config file. By default it
    --config          will search for a file to use in the following
                      order:
@@ -148,10 +147,12 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
 
                         Platform appropriate path separaters are used.
 
-
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
 
    -d, --debug       Print debug messages to stderr.
+
+   --line-buffered   Force output to be line buffered. By defaut, output is
+                     buffered when standard output is not a tty.
 
    LOG_FILE          The path to a log file. By default logrep will
                      read from the file path specified in wtop.cfg
@@ -226,7 +227,8 @@ def runit():
                                ("output=", "filter=", "sort=", "quiet",
                                 "config=", "last=", "help", "humans-only",
                                 "robots-only", "mode=", "filter=", "include=",
-                                "exclude=", "x-tmp-dir=", "version"))
+                                "exclude=", "x-tmp-dir=", "version",
+                                "line-buffered"))
 
     last_n = None
     include_classes = list()
@@ -283,6 +285,8 @@ def runit():
                 if not os.path.isfile(v):
                     raise Exception("can't read config file: '%s'" % v)
                 cfg = v
+        elif o in ("--line-buffered"):
+            logrep.LINE_BUFFERED = True
 
         # experimental
         elif o == "--x-tmp-dir":
@@ -341,7 +345,7 @@ def runit():
             logfiles = logrep.yesterdays_logs()
 
         elif args[0] == "-":
-            log = sys.stdin
+            log = (line for line in iter(sys.stdin.readline, ""))
 
         else:  # explicit file.
             logfiles = [args[0]]

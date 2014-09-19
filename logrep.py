@@ -35,6 +35,7 @@ except:
     iqm_available = False
 
 
+LINE_BUFFERED = False
 LOG_LEVEL = 1                   # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000          # number of records to hold in memory before
                                 #   flushing to disk
@@ -119,12 +120,16 @@ def debug(s):
     if LOG_LEVEL < 2:
         return
     sys.stderr.write(s + "\n")
+    if LINE_BUFFERED:
+        sys.stderr.flush()
 
 
 def warn(s):
     if LOG_LEVEL < 1:
         return
     sys.stderr.write(s + "\n")
+    if LINE_BUFFERED:
+        sys.stderr.flush()
 
 
 def find_cfg_file():
@@ -872,6 +877,8 @@ def apache_top_mode(reqs):
 def print_mode(reqs, fields):
     for r in reqs:
         print "\t".join([str(r[k]) for k in fields])
+        if LINE_BUFFERED:
+            sys.stdout.flush()
 
 
 # compact ids for a dict, given a list of keys to use as the unique identifier
@@ -1073,6 +1080,8 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
 def agg_mode(rows, fmt):
     for row in rows:
         print fmt % tuple(row[1:])
+        if LINE_BUFFERED:
+            sys.stdout.flush()
 
 
 ## experimental RRDtool mode for generating timeseries graphs
