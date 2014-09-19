@@ -1,3 +1,14 @@
+wtop (0.7.8) lucid; urgency=low
+
+  * Added debug()
+  * Refactored cfg_file handling with assistance from Matt Gray
+    * Setup detects VirtualEnv and respects --user
+    * Logrep/wtop search for the config if it is not specified (see help)
+  * Added tool chain to create Robots Pattern
+  * Improved stdin/stdout buffering handling
+
+ -- Timid Robot Zehta <tim@clockwork.net>  Fri, 19 Sep 2014 13:14:44 -0500
+
 wtop (0.7.7) lucid; urgency=low
 
   * Removed not-yet-implemented help text

@@ -1,18 +1,20 @@
-version 0.7.8-PENDING
+version 0.7.8, 2014 Sep 19
 ==========================
 
 Improved
 --------
 
 - Added debug()
-- Refactored cfg_file handling with assistance from `Matt Gray`_
+- Refactored cfg_file handling with assistance from Matt Gray
+  (see `CONTRIBUTORS.rst`_)
 
   - Setup detects VirtualEnv and respects --user
   - Logrep/wtop search for the config if it is not specified (see help)
 
 - Added tool chain to create `Robots Pattern`_
+- Improved stdin/stdout buffering handling (`GitHub Issue 3`_)
 
-.. _`Matt Gray`: https://github.com/rrazor
+.. _`GitHub Issue 3`: https://github.com/ClockworkNet/wtop/issues/3
 .. _`Robots Pattern`: https://github.com/ClockworkNet/wtop/wiki/RobotsPattern
 
 Deprecated or Known Issues
@@ -210,7 +212,7 @@ Improved
 - Added experimental, limited support for Micrsoft IIS logs. At the moment only
   the "W3c Extended" format is supported. In a future release there will be
   support for custom column layouts, etc. Many thanks to jbowtie for the patch.
-  (`Google Code Issue 16`_)
+  (`Google Code Issue 16`_; see `CONTRIBUTORS.rst`_)
 - Added transparent support for Apache logfiles created with rotatelogs_. It
   should Just Work.
 - Curses support in wtop mode, if available.
@@ -301,7 +303,10 @@ Improved
   parameter. Credit to Igor S.
 - Handles `%h` when Hostnamelookups is on in Apache. Hostnamelookups is usually
   not recommended, but you crazy kids want it, so it's there. Credit to Andrew
-  Hedges.
+  Hedges (see `CONTRIBUTORS.rst`_)
+
+.. _`CONTRIBUTORS.rst`:
+   https://github.com/ClockworkNet/wtop/blob/master/CONTRIBUTORS.rst
 
 Deprecated or Known Issues
 --------------------------
