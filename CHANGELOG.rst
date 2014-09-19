@@ -5,10 +5,15 @@ Improved
 --------
 
 - Added debug()
-- Refactored cfg_file handling with assistanc from Matt Gray
+- Refactored cfg_file handling with assistanc from `Matt Gray`_
 
   - Setup detects VirtualEnv and respects --user
   - Logrep/wtop search for the config if it is not specified (see help)
+
+- Added toolchain to create `Robots Pattern`_
+
+.. _`Matt Gray`: https://github.com/rrazor
+.. _`Robots Pattern`: https://github.com/ClockworkNet/wtop/wiki/RobotsPattern
 
 Deprecated or Known Issues
 --------------------------
