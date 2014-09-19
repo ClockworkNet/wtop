@@ -5,12 +5,12 @@ Improved
 --------
 
 - Added debug()
-- Refactored cfg_file handling with assistanc from `Matt Gray`_
+- Refactored cfg_file handling with assistance from `Matt Gray`_
 
   - Setup detects VirtualEnv and respects --user
   - Logrep/wtop search for the config if it is not specified (see help)
 
-- Added toolchain to create `Robots Pattern`_
+- Added tool chain to create `Robots Pattern`_
 
 .. _`Matt Gray`: https://github.com/rrazor
 .. _`Robots Pattern`: https://github.com/ClockworkNet/wtop/wiki/RobotsPattern
@@ -89,7 +89,7 @@ Improved
 --------
 
 - Corrected mid-processing `miqm()` result. The bad result corrupted the sort
-  order for `miqm()` aggrevated fields with less than 1001 records.
+  order for `miqm()` aggravated fields with less than 1001 records.
 
 
 version 0.7.2, 2013 Jul 11
@@ -130,7 +130,7 @@ Improved
 - Corrected `dev()` (standard deviation) (`GitHub Issue 1`_)
 - Allow escaped quotes in re-quoted patterns (`Google Code Issue 34`_)
 - Corrected date handling issue introduced in 0.6.8 (`Google Code Issue 32`_)
-- Addded support for `%F` mod-log-firstbyte_ -- "A module for Apache 2.0 which
+- Added support for `%F` mod-log-firstbyte_ -- "A module for Apache 2.0 which
   allows you to log the time between each request being read and the first byte
   of the response served." (`Google Code Issue 30`_)
 - Added support for ignored fields in `LOG_FORMAT` (`Google Code Issue 18`_)
