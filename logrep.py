@@ -186,7 +186,8 @@ def configure(cfg_file=None):
     global LOG_FORMAT, LOG_PATTERN, LOG_ROOT, MAX_REQUEST_TIME, MIN_RPS
     global config, re_classes, re_generic, re_robots
 
-    cfg_file = find_cfg_file()
+    if cfg_file is None:
+        cfg_file = find_cfg_file()
 
     config = ConfigParser.ConfigParser()
     config.read(cfg_file)

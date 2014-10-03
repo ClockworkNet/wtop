@@ -287,7 +287,6 @@ def runit():
                 cfg = v
         elif o in ("--line-buffered"):
             logrep.LINE_BUFFERED = True
-
         # experimental
         elif o == "--x-tmp-dir":
             if not os.path.exists(v) or not(os.path.isdir(v)):
