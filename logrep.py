@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 
-VERSION = "0.7.8"
-VERDATE = "2014 Sep 19"
+VERSION = "0.7.9"
+VERDATE = "2014 Oct 03"
 
 # Standard library
 import ConfigParser

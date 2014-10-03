@@ -1,3 +1,18 @@
+version 0.7.9, 2014 Oct 03
+==========================
+
+Improved
+--------
+
+- Fixed -c/--config (`GitHub Issue 6`_)
+
+Deprecated or Known Issues
+--------------------------
+
+- iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
+  is less than the total number of records returned (`GitHub Issue 4`_)
+
+
 version 0.7.8, 2014 Sep 19
 ==========================
 
@@ -22,6 +37,9 @@ Deprecated or Known Issues
 
 - iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
   is less than the total number of records returned (`GitHub Issue 4`_)
+- The -c/--config option is ignored (`GitHub Issue 6`_)
+
+.. _`GitHub Issue 6`: https://github.com/ClockworkNet/wtop/issues/6
 
 
 version 0.7.7, 2013 Oct 18
