@@ -60,8 +60,17 @@ Installation
 ============
 
 This will put logrep and wtop in your executable path, and drop the
-default wtop.cfg file into `/etc/wtop.cfg`. In a virtualenv, it will
-be installed in `$VIRTUAL_ENV/etc/wtop.cfg`.
+default `wtop.cfg` into a location appropriate to the installation
+(platform appropriate path separaters are used). It search for the
+config in the following order:
+
+1. VirtualEnv + /etc/wtop.cfg
+2. PYTHONUSERBASE + /etc/wtop.cfg
+3. USER_BASE + /etc/wtop.cfg
+4. Python Lib + /etc/wtop.cfg
+5. /etc/wtop.cfg
+
+Invoke `logrep -d` to see which location it used.
 
 wtop/logrep require Python version 2.6 or greater.
 
