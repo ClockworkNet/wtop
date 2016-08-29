@@ -61,7 +61,7 @@ Installation
 
 This will put logrep and wtop in your executable path, and drop the
 default `wtop.cfg` into a location appropriate to the installation
-(platform appropriate path separaters are used). It search for the
+(platform appropriate path separaters are used). It searches for the
 config in the following order:
 
 1. VirtualEnv + /etc/wtop.cfg
