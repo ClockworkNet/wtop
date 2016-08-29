@@ -420,7 +420,7 @@ def runit():
                 logrep.print_mode(reqs, output_fields)
 
     except KeyboardInterrupt:
-        sys.stderr.write("Interrupted! Mein leiben!\n")
+        sys.stderr.write("Interrupted! Mein leben!\n")
 
 
 if __name__ == "__main__":
