@@ -67,6 +67,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         day
                         hour
                         minute
+                        second
                         country    country name (see Geocoding, below)
                         cc         ISO-639 country code (see below)
 
