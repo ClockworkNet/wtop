@@ -8,6 +8,7 @@
 # source uri:     http://iregex.org/blog/trie-in-python.html
 
 # Standard Library
+from __future__ import absolute_import, division, print_function
 import re
 
 
@@ -75,4 +76,4 @@ if __name__ == '__main__':
     a = Trie()
     for w in ['foobar', 'foobah', 'fooxar', 'foozap', 'fooza']:
         a.add(w)
-    print a.regexp()
+    print(a.regexp())
