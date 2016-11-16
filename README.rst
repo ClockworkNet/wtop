@@ -63,7 +63,7 @@ This library currently requires compatibility with:
 
 - 2.6
 - 2.7
-- 3.4
+- 3.4 (testing incomplete)
 
 However, additional versions are tested automatically:
 
