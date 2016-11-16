@@ -56,6 +56,21 @@ See `CookbookLogrep - wtop wiki`_ for additional examples.
    https://github.com/ClockworkNet/wtop/wiki/CookbookLogrep
 
 
+Python Compatibility
+--------------------
+
+This library currently requires compatibility with:
+
+- 2.6
+- 2.7
+- 3.4
+
+However, additional versions are tested automatically:
+
+.. image:: https://travis-ci.org/ClockworkNet/wtop.svg?branch=master
+    :target: https://travis-ci.org/ClockworkNet/wtop
+
+
 Installation
 ============
 
