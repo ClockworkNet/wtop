@@ -1,20 +1,28 @@
 #!/usr/bin/env python
+# vim: set fileencoding=utf-8 :
+
+# Standard library
+from __future__ import absolute_import, division, print_function
 import distutils.sysconfig
 import os.path
 import site
 import sys
-# setup
+
+# Setup
 try:
     # Third-party
     from setuptools import setup
 except ImportError:
     # Standard library
     from distutils.core import setup
-# Project
+
+# Local/library specific
 import logrep
+
 
 # For historical reasons this package is called "wtop" even though wtop is a
 # paper-thin shell on a special case of logrep.
+
 
 # Install config file appropriately
 cfg_file_path = "etc"
@@ -47,5 +55,4 @@ setup(author="Timid Robot Zehta",
       py_modules=["logrep"],
       scripts=["wtop", "logrep", "wtop.bat", "logrep.bat"],
       url="https://github.com/ClockworkNet/wtop",
-      version=logrep.VERSION,
-      )
+      version=logrep.VERSION)

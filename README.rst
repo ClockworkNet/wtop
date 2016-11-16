@@ -56,12 +56,35 @@ See `CookbookLogrep - wtop wiki`_ for additional examples.
    https://github.com/ClockworkNet/wtop/wiki/CookbookLogrep
 
 
+Python Compatibility
+--------------------
+
+This library currently requires compatibility with:
+
+- 2.6
+- 2.7
+
+However, additional versions are tested automatically:
+
+.. image:: https://travis-ci.org/ClockworkNet/wtop.svg?branch=master
+    :target: https://travis-ci.org/ClockworkNet/wtop
+
+
 Installation
 ============
 
 This will put logrep and wtop in your executable path, and drop the
-default wtop.cfg file into `/etc/wtop.cfg`. In a virtualenv, it will
-be installed in `$VIRTUAL_ENV/etc/wtop.cfg`.
+default `wtop.cfg` into a location appropriate to the installation
+(platform appropriate path separaters are used). It searches for the
+config in the following order:
+
+1. VirtualEnv + /etc/wtop.cfg
+2. PYTHONUSERBASE + /etc/wtop.cfg
+3. USER_BASE + /etc/wtop.cfg
+4. Python Lib + /etc/wtop.cfg
+5. /etc/wtop.cfg
+
+Invoke `logrep -d` to see which location it used.
 
 wtop/logrep require Python version 2.6 or greater.
 
@@ -94,6 +117,35 @@ Debian, Ubuntu, Windows, etc.
 See `Install - wtop wiki`_.
 
 .. _`Install - wtop wiki`: https://github.com/ClockworkNet/wtop/wiki/Install
+
+
+Testing Quick Start
+===================
+
+1. Change directory into repository (into same directory as where this README
+   resides).
+2. Install virtual environment::
+
+    mkvirtualenv -a . -r tests/requirements.txt wtop_test
+
+   a. If installing requirements errors, update `pip`::
+
+        pip install --upgrade pip
+
+   b. Install requirements::
+
+        pip install -r tests/requirements.txt
+
+3. Run pytest::
+
+    py.test
+
+To test against alternate Python versions, it may be useful to create virtual
+environments with an interpreter other than the one with which ``virtualenv``
+was installed, e.g. for non-default python3::
+
+    mkvirtualenv -a $(pwd) -p $(which python3) -r tests/requirements.txt wtop_test3
+
 
 
 Changelog

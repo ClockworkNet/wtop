@@ -67,6 +67,7 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         day
                         hour
                         minute
+                        second
                         country    country name (see Geocoding, below)
                         cc         ISO-639 country code (see below)
 
@@ -145,13 +146,13 @@ logrep  [--mode MODE] [--include | --exclude CLASSES] [-H | -R]
                         Python Lib + /etc/wtop.cfg
                         /etc/wtop.cfg
 
-                        Platform appropriate path separaters are used.
+                        Platform appropriate path separators are used.
 
    -q, --quiet       Quiet mode. Does not print warnings to stderr.
 
    -d, --debug       Print debug messages to stderr.
 
-   --line-buffered   Force output to be line buffered. By defaut, output is
+   --line-buffered   Force output to be line buffered. By default, output is
                      buffered when standard output is not a tty.
 
    LOG_FILE          The path to a log file. By default logrep will
@@ -420,7 +421,7 @@ def runit():
                 logrep.print_mode(reqs, output_fields)
 
     except KeyboardInterrupt:
-        sys.stderr.write("Interrupted! Mein leiben!\n")
+        sys.stderr.write("Interrupted! Mein leben!\n")
 
 
 if __name__ == "__main__":

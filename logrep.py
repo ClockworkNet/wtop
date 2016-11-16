@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 
-VERSION = "0.7.9"
-VERDATE = "2014 Oct 03"
-
 # Standard library
+from __future__ import absolute_import, division, print_function
+from copy import copy
+from hashlib import md5 as md5
+from subprocess import call
 import ConfigParser
 import calendar
-from copy import copy
 import distutils.sysconfig
 import fnmatch
-from hashlib import md5 as md5
 import math
 import os
 import os.path
@@ -18,10 +17,10 @@ import random
 import re
 import site
 import socket
-from subprocess import call
 import sys
 import time
 import urllib
+
 # Third-party
 try:
     import GeoIP
@@ -35,12 +34,16 @@ except:
     iqm_available = False
 
 
+VERSION = "0.7.10"
+VERDATE = "2016 Nov 16"
+
+
 LINE_BUFFERED = False
 LOG_LEVEL = 1                   # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000          # number of records to hold in memory before
-                                #   flushing to disk
+#                                 flushing to disk
 SORT_BUFFER_LENGTH = 100000     # number of records to hold before triggering
-                                #   a sort & prune operation
+#                                 a sort & prune operation
 PROGRESS_INTERVAL = 20000       # ie warn("processed X lines...")
 
 # randomize the disc sync and sort_buffer len to reduce the
@@ -204,7 +207,7 @@ def configure(cfg_file=None):
     for o in config.options("classes"):
         classes.append((o, config.get("classes", o)))
 
-    ## compile a godawful bunch of regexps
+    # compile a godawful bunch of regexps
     re_robots = re.compile(config.get("patterns", "robots"), re.I)
     re_generic = re.compile(config.get("patterns", "generic"))
     re_classes = [(x[0], re.compile(x[1], re.I)) for x in classes]
@@ -272,11 +275,11 @@ def safeint(s):
     return int(s.replace("-", "0"))
 
 
-### timestamp parsing
-## "...the %z escape that expands to the preferred hour/minute
-##     offset is not supported by all ANSI C libraries..."
-## http://docs.python.org/library/time.html
-## GRRRR.
+# timestamp parsing
+# "...the %z escape that expands to the preferred hour/minute
+#     offset is not supported by all ANSI C libraries..."
+# http://docs.python.org/library/time.html
+# GRRRR.
 def tz2secs(s):
     plusminus = 1 if s[0] == "-" else -1
     return ((int(s[1:3])*3600) + (int(s[3:5]))*60) * plusminus
@@ -292,7 +295,7 @@ def apache2unixtime(t):
 # 21/Jul/2008:18:09:00 -0700   -->   (2008, 7, 21, 18, 9)
 def apache2dateparts(t):
     return (int(t[7:11]), time.strptime(t[3:6], "%b").tm_mon, int(t[0:2]),
-            int(t[12:14]), int(t[15:17]))
+            int(t[12:14]), int(t[15:17]), int(t[18:20]))
 
 
 # keeps a count of seen remote IP addresses. returns
@@ -379,7 +382,7 @@ col_fns = [
     ("url",       ("class",),           classify_url),
     ("timestamp", ("year", "month",
                    "day", "hour",
-                   "minute"),           apache2dateparts),
+                   "minute", "second"), apache2dateparts),
     ("timestamp", ("ts",),              apache2unixtime),
     ("ref",       ("refdom",),          domain),
 ]
@@ -435,7 +438,7 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
 
 
 ##########################################################################
-## IIS-specific stuff. Can't be arsed to libraryize it.
+# IIS-specific stuff. Can't be arsed to libraryize it.
 
 # {"date": "2008-07-21", "time": "18:09:00"}    --> 1216688940
 def iis2unixtime(r):
@@ -527,22 +530,22 @@ def latest_log():
     return todays_logs()
 
 
-## these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1,
-## YYYYMMDD.log.2, etc
-#def logs_for_date(dt):
-#    return sorted(gen_find(dt + "*.log*",LOG_ROOT),
-#                   key=(lambda x: safeint(x.split(".")[-1])))
-#def todays_logs():
-#    return logs_for_date(time.strftime("%Y%m%d",
-#                          time.localtime(time.time())))
-#def yesterdays_logs():
-#    return (logs_for_date(time.strftime("%Y%m%d",
-#             time.localtime(time.time()-86400)))
-#def latest_log():
-#    return todays_logs()[-1]
+# # these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1,
+# # YYYYMMDD.log.2, etc
+# def logs_for_date(dt):
+#     return sorted(gen_find(dt + "*.log*",LOG_ROOT),
+#                    key=(lambda x: safeint(x.split(".")[-1])))
+# def todays_logs():
+#     return logs_for_date(time.strftime("%Y%m%d",
+#                           time.localtime(time.time())))
+# def yesterdays_logs():
+#     return (logs_for_date(time.strftime("%Y%m%d",
+#              time.localtime(time.time()-86400)))
+# def latest_log():
+#     return todays_logs()[-1]
 
 
-## apache log funcs from David Beazley's generators talk
+# apache log funcs from David Beazley's generators talk
 def gen_find(filepat, top):
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, filepat):
@@ -805,7 +808,7 @@ def compile_filter(commands):
                 return False
         return True
 
-    #the compiled function to be returned.
+    # the compiled function to be returned.
     def fn(lst):
         first = lst.next()
         conditions = typecast(first)
@@ -824,7 +827,7 @@ def tail_n(filename, num):
         yield line
 
 
-## modes
+# modes
 def gen_top_stats(reqs, every=5):
     stats = dict()
     last_print = 0
@@ -871,13 +874,13 @@ def apache_top_mode(reqs):
                        (c, pretty_float(rps), avg, mn, sparkline, mx, x3, x4,
                         x5, slow))
 
-        print "\n".join(buf) + "\n\n\n"
+        print("\n".join(buf) + "\n\n\n")
 
 
 # for both tail and grep mode
 def print_mode(reqs, fields):
     for r in reqs:
-        print "\t".join([str(r[k]) for k in fields])
+        print("\t".join([str(r[k]) for k in fields]))
         if LINE_BUFFERED:
             sys.stdout.flush()
 
@@ -1080,18 +1083,18 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
 
 def agg_mode(rows, fmt):
     for row in rows:
-        print fmt % tuple(row[1:])
+        print(fmt % tuple(row[1:]))
         if LINE_BUFFERED:
             sys.stdout.flush()
 
 
-## experimental RRDtool mode for generating timeseries graphs
+# experimental RRDtool mode for generating timeseries graphs
 def normalize(lst, total, scale):
     return [int(round((x/float(total))*scale)) for x in lst]
 
 
 def create_rrd(klass, ts, step=5):
-    print "creating rrd", klass, ts
+    print("creating rrd", klass, ts)
     rowcnt = 86400 / step
     call(["rrdtool", "create", "%s.rrd" % klass, "--step", "%d" % step,
           "--start", "%s" % ts, "DS:rps2xx:GAUGE:5:0:5000",
@@ -1104,7 +1107,7 @@ def create_rrd(klass, ts, step=5):
 
 # coordinate all the godawful rrdtool command options
 def create_graph(klass, ts, length, rpslim, mseclim, type="brief"):
-    print "creating graph", klass, ts
+    print("creating graph", klass, ts)
     common = ["-s", str(ts-length), "-e", str(ts), "--color", "BACK#ffffff00",
               "--color", "SHADEA#ffffff00", "--color", "SHADEB#ffffff00",
               "--color", "CANVAS#eeeeee00", "--color", "GRID#eeeeee00",
@@ -1206,7 +1209,7 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100,
 
         # time to emit some stats
         if r["ts"] >= cur_time+step:
-            print cur_time
+            print(cur_time)
             for k in classes:
                 if k not in stats:
                     continue

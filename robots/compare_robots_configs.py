@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
+
 # Standard library
+from __future__ import absolute_import, division, print_function
 import argparse
 import ConfigParser
 import io
@@ -56,10 +58,10 @@ def evalute_robots_pattern(re_robots):
         for line in fh:
             if re_robots.search(line):
                 matched += 1
-                # print "+%s:" % i, line.strip()
+                # print("+%s:" % i, line.strip())
             else:
                 missed += 1
-                # print "-%s:" % i, line.strip()
+                # print("-%s:" % i, line.strip())
             i += 1
     return matched, missed
 
@@ -85,32 +87,32 @@ def display_results(name, config_file, data, old_data=None):
     """Display results of config evaluation."""
     matched, missed, duration = data
     msg = "%s Config (%s)" % (name, config_file)
-    print msg
-    print "=" * len(msg)
+    print(msg)
+    print("=" * len(msg))
     if old_data is None:
-        print "matched: %5d" % matched
-        print "missed:  %5d" % missed
-        print "duration:%9.3fs" % duration
+        print("matched: %5d" % matched)
+        print("missed:  %5d" % missed)
+        print("duration:%9.3fs" % duration)
         print
     else:
         old_matched, old_missed, old_duration = old_data
-        print "matched: %5d" % matched,
+        print("matched: %5d" % matched,)
         if matched > old_matched:
             adj = "more"
         else:
             adj = "less"
         diff_abs = abs(old_matched - matched)
         diff_percent = diff_abs / float(old_matched) * 100
-        print "     (%.0f%% %s)" % (diff_percent, adj)
-        print "missed:  %5d" % missed
-        print "duration:%9.3fs" % duration,
+        print("     (%.0f%% %s)" % (diff_percent, adj))
+        print("missed:  %5d" % missed)
+        print("duration:%9.3fs" % duration,)
         if duration < old_duration:
             adj = "faster"
         else:
             adj = "slower"
         diff_abs = abs(old_duration - duration)
         diff_percent = diff_abs / float(old_duration) * 100
-        print "(%.0f%% %s)" % (diff_percent, adj)
+        print("(%.0f%% %s)" % (diff_percent, adj))
 
 
 def main():
