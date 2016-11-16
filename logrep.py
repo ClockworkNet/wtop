@@ -34,8 +34,8 @@ except:
     iqm_available = False
 
 
-VERSION = "0.7.9"
-VERDATE = "2014 Oct 03"
+VERSION = "0.7.10"
+VERDATE = "2016 Nov 16"
 
 
 LINE_BUFFERED = False
