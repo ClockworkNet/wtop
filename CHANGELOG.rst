@@ -1,3 +1,20 @@
+version 0.7.10, 2016 Nov 16
+===========================
+
+Improved
+--------
+
+- added seconds (thank you @rrazor!)
+- added py.test and Travis CI (just flake8 for now)
+- corrected German (thanks @windlass)
+
+Deprecated or Known Issues
+--------------------------
+
+- iqm() and miqm() aggregation functions are unreliable when the sort LIMIT
+  is less than the total number of records returned (`GitHub Issue 4`_)
+
+
 version 0.7.9, 2014 Oct 03
 ==========================
 
