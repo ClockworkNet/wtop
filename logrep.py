@@ -2,6 +2,7 @@
 # vim: set fileencoding=utf-8 :
 
 # Standard library
+from __future__ import absolute_import, division, print_function
 from copy import copy
 from hashlib import md5 as md5
 from subprocess import call
@@ -873,13 +874,13 @@ def apache_top_mode(reqs):
                        (c, pretty_float(rps), avg, mn, sparkline, mx, x3, x4,
                         x5, slow))
 
-        print "\n".join(buf) + "\n\n\n"
+        print("\n".join(buf) + "\n\n\n")
 
 
 # for both tail and grep mode
 def print_mode(reqs, fields):
     for r in reqs:
-        print "\t".join([str(r[k]) for k in fields])
+        print("\t".join([str(r[k]) for k in fields]))
         if LINE_BUFFERED:
             sys.stdout.flush()
 
@@ -1082,7 +1083,7 @@ def calculate_aggregates(reqs, agg_fields, group_by, order_by=None, limit=0,
 
 def agg_mode(rows, fmt):
     for row in rows:
-        print fmt % tuple(row[1:])
+        print(fmt % tuple(row[1:]))
         if LINE_BUFFERED:
             sys.stdout.flush()
 
@@ -1093,7 +1094,7 @@ def normalize(lst, total, scale):
 
 
 def create_rrd(klass, ts, step=5):
-    print "creating rrd", klass, ts
+    print("creating rrd", klass, ts)
     rowcnt = 86400 / step
     call(["rrdtool", "create", "%s.rrd" % klass, "--step", "%d" % step,
           "--start", "%s" % ts, "DS:rps2xx:GAUGE:5:0:5000",
@@ -1106,7 +1107,7 @@ def create_rrd(klass, ts, step=5):
 
 # coordinate all the godawful rrdtool command options
 def create_graph(klass, ts, length, rpslim, mseclim, type="brief"):
-    print "creating graph", klass, ts
+    print("creating graph", klass, ts)
     common = ["-s", str(ts-length), "-e", str(ts), "--color", "BACK#ffffff00",
               "--color", "SHADEA#ffffff00", "--color", "SHADEB#ffffff00",
               "--color", "CANVAS#eeeeee00", "--color", "GRID#eeeeee00",
@@ -1208,7 +1209,7 @@ def rrd_mode(reqs, step=5, msec_max=2000, hist_steps=10, hist_scale=100,
 
         # time to emit some stats
         if r["ts"] >= cur_time+step:
-            print cur_time
+            print(cur_time)
             for k in classes:
                 if k not in stats:
                     continue
