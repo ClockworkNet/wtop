@@ -130,7 +130,7 @@ To test against alternate Python versions, it may be useful to create virtual
 environments with an interpreter other than the one with which ``virtualenv``
 was installed, e.g. for non-default python3::
 
-    mkvirtualenvv --system-site-packages -a $(pwd) -p $(which python3) -r tests/requirements.txt wtop_test3
+    mkvirtualenvv -a $(pwd) -p $(which python3) -r tests/requirements.txt wtop_test3
 
 
 
