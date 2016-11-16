@@ -34,7 +34,7 @@ except:
     iqm_available = False
 
 
-VERSION = "0.7.10"
+VERSION = "0.7.11"
 VERDATE = "2016 Nov 16"
 
 

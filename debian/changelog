@@ -1,4 +1,4 @@
-wtop (0.7.10) lucid; urgency=low
+wtop (0.7.11) lucid; urgency=low
 
   * added seconds (thank you @rrazor!)
   * added py.test and Travis CI (just flake8 for now)
