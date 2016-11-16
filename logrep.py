@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 # vim: set fileencoding=utf-8 :
 
-VERSION = "0.7.9"
-VERDATE = "2014 Oct 03"
-
 # Standard library
+from copy import copy
+from hashlib import md5 as md5
+from subprocess import call
 import ConfigParser
 import calendar
-from copy import copy
 import distutils.sysconfig
 import fnmatch
-from hashlib import md5 as md5
 import math
 import os
 import os.path
@@ -18,10 +16,10 @@ import random
 import re
 import site
 import socket
-from subprocess import call
 import sys
 import time
 import urllib
+
 # Third-party
 try:
     import GeoIP
@@ -35,12 +33,16 @@ except:
     iqm_available = False
 
 
+VERSION = "0.7.9"
+VERDATE = "2014 Oct 03"
+
+
 LINE_BUFFERED = False
 LOG_LEVEL = 1                   # 0 == quiet, 1 == normal, 2 == debug
 DISC_SYNC_CNT = 100000          # number of records to hold in memory before
-                                #   flushing to disk
+#                                 flushing to disk
 SORT_BUFFER_LENGTH = 100000     # number of records to hold before triggering
-                                #   a sort & prune operation
+#                                 a sort & prune operation
 PROGRESS_INTERVAL = 20000       # ie warn("processed X lines...")
 
 # randomize the disc sync and sort_buffer len to reduce the
@@ -204,7 +206,7 @@ def configure(cfg_file=None):
     for o in config.options("classes"):
         classes.append((o, config.get("classes", o)))
 
-    ## compile a godawful bunch of regexps
+    # compile a godawful bunch of regexps
     re_robots = re.compile(config.get("patterns", "robots"), re.I)
     re_generic = re.compile(config.get("patterns", "generic"))
     re_classes = [(x[0], re.compile(x[1], re.I)) for x in classes]
@@ -272,11 +274,11 @@ def safeint(s):
     return int(s.replace("-", "0"))
 
 
-### timestamp parsing
-## "...the %z escape that expands to the preferred hour/minute
-##     offset is not supported by all ANSI C libraries..."
-## http://docs.python.org/library/time.html
-## GRRRR.
+# timestamp parsing
+# "...the %z escape that expands to the preferred hour/minute
+#     offset is not supported by all ANSI C libraries..."
+# http://docs.python.org/library/time.html
+# GRRRR.
 def tz2secs(s):
     plusminus = 1 if s[0] == "-" else -1
     return ((int(s[1:3])*3600) + (int(s[3:5]))*60) * plusminus
@@ -435,7 +437,7 @@ def apache_log(loglines, LOG_PATTERN, LOG_COLUMNS, relevant_fields):
 
 
 ##########################################################################
-## IIS-specific stuff. Can't be arsed to libraryize it.
+# IIS-specific stuff. Can't be arsed to libraryize it.
 
 # {"date": "2008-07-21", "time": "18:09:00"}    --> 1216688940
 def iis2unixtime(r):
@@ -527,22 +529,22 @@ def latest_log():
     return todays_logs()
 
 
-## these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1,
-## YYYYMMDD.log.2, etc
-#def logs_for_date(dt):
-#    return sorted(gen_find(dt + "*.log*",LOG_ROOT),
-#                   key=(lambda x: safeint(x.split(".")[-1])))
-#def todays_logs():
-#    return logs_for_date(time.strftime("%Y%m%d",
-#                          time.localtime(time.time())))
-#def yesterdays_logs():
-#    return (logs_for_date(time.strftime("%Y%m%d",
-#             time.localtime(time.time()-86400)))
-#def latest_log():
-#    return todays_logs()[-1]
+# # these alternative functions handle Netscaler-style logs: YYYYMMDD.log.1,
+# # YYYYMMDD.log.2, etc
+# def logs_for_date(dt):
+#     return sorted(gen_find(dt + "*.log*",LOG_ROOT),
+#                    key=(lambda x: safeint(x.split(".")[-1])))
+# def todays_logs():
+#     return logs_for_date(time.strftime("%Y%m%d",
+#                           time.localtime(time.time())))
+# def yesterdays_logs():
+#     return (logs_for_date(time.strftime("%Y%m%d",
+#              time.localtime(time.time()-86400)))
+# def latest_log():
+#     return todays_logs()[-1]
 
 
-## apache log funcs from David Beazley's generators talk
+# apache log funcs from David Beazley's generators talk
 def gen_find(filepat, top):
     for path, dirlist, filelist in os.walk(top):
         for name in fnmatch.filter(filelist, filepat):
@@ -805,7 +807,7 @@ def compile_filter(commands):
                 return False
         return True
 
-    #the compiled function to be returned.
+    # the compiled function to be returned.
     def fn(lst):
         first = lst.next()
         conditions = typecast(first)
@@ -824,7 +826,7 @@ def tail_n(filename, num):
         yield line
 
 
-## modes
+# modes
 def gen_top_stats(reqs, every=5):
     stats = dict()
     last_print = 0
@@ -1085,7 +1087,7 @@ def agg_mode(rows, fmt):
             sys.stdout.flush()
 
 
-## experimental RRDtool mode for generating timeseries graphs
+# experimental RRDtool mode for generating timeseries graphs
 def normalize(lst, total, scale):
     return [int(round((x/float(total))*scale)) for x in lst]
 

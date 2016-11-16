@@ -105,6 +105,35 @@ See `Install - wtop wiki`_.
 .. _`Install - wtop wiki`: https://github.com/ClockworkNet/wtop/wiki/Install
 
 
+Testing Quick Start
+===================
+
+1. Change directory into repository (into same directory as where this README
+   resides).
+2. Install virtual environment::
+
+    mkvirtualenv -a . -r tests/requirements.txt wtop_test
+
+   a. If installing requirements errors, update `pip`::
+
+        pip install --upgrade pip
+
+   b. Install requirements::
+
+        pip install -r tests/requirements.txt
+
+3. Run pytest::
+
+    py.test
+
+To test against alternate Python versions, it may be useful to create virtual
+environments with an interpreter other than the one with which ``virtualenv``
+was installed, e.g. for non-default python3::
+
+    mkvirtualenvv --system-site-packages -a $(pwd) -p $(which python3) -r tests/requirements.txt wtop_test3
+
+
+
 Changelog
 =========
 
